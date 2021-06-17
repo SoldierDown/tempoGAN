@@ -16,7 +16,7 @@
 
 namespace Manta {
 
-PyMODINIT_FUNC initNumpy() { import_array(); }
+PyMODINIT_FUNC initNumpy() { import_array(); return NULL;}
 
 template<> PyArrayContainer fromPy<PyArrayContainer>(PyObject* obj) {
 	if (PyArray_API == NULL){

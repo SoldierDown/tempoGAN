@@ -346,7 +346,8 @@ endif()
 # optional - compile with numpy support?
 if(NUMPY)
 	# if the python command below doesnt work, manually set path, e.g., use "numpy.get_include()" to find path 
-	# set(NUMPY_INCLUDE_DIR "${PYTHON_INCLUDE_DIRS}/dist-packages/numpy/core/include") 
+	# set(NUMPY_INCLUDE_DIR "${PYTHON_INCLUDE_DIRS}/dist-packages/numpy/core/include")
+	set(NUMPY_INCLUDE_DIR "/home/ubuntu/anaconda3/envs/tempoGAN/lib/python3.9/site-packages/numpy/core/include")	
 	execute_process(COMMAND python${PYTHON_FORCE_VERSION} -c "import numpy, sys; sys.stdout.write(numpy.get_include())" OUTPUT_VARIABLE NUMPY_INCLUDE_DIR) 
 	# SET (NUMPY_INCLUDE_DIR "...") # alternatively, set manually here
 	if("${NUMPY_INCLUDE_DIR}" STREQUAL "")
@@ -452,6 +453,9 @@ else()
 		find_package(PythonLibs ${PYTHON_FORCE_VERSION} EXACT REQUIRED) # fixed version
 	endif()
 endif()
+
+set(PYTHON_INCLUDE_DIRS "/home/ubuntu/anaconda3/envs/tempoGAN/include/python3.9")
+set(PYTHON_LIBRARIES "/home/ubuntu/anaconda3/envs/tempoGAN/lib/libpython3.9.so")
 list(APPEND INCLUDE_PATHS ${PYTHON_INCLUDE_DIRS})
 list(APPEND F_LIBS ${PYTHON_LIBRARIES})
 message("Using python include path '${PYTHON_INCLUDE_DIRS}' and libs '${PYTHON_LIBRARIES}' ") 

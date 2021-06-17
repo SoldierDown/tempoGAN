@@ -22,7 +22,7 @@ import paramhelpers as ph
 
 # Main params  ----------------------------------------------------------------------#
 steps    = 200
-simNo    = 1000  # start ID
+simNo    = 1001  # start ID
 showGui  = 1
 basePath = '../data/'
 npSeedstr   = "-1"
