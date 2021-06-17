@@ -12,7 +12,7 @@
 import numpy as np
 import tensorflow as tf
 import math
-from tensorflow.keras import backend as kb
+from keras import backend as kb
 
 class GAN(object):
 	#---------------------------------------------------------------------------------

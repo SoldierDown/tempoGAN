@@ -13,10 +13,10 @@ import paramhelpers as ph
 simId = 2006
 simPath = '../2ddata_sim/'
 simPath,simId = ph.getNextSimPath(simId, simPath)
-
 # how much to reduce target sim size
 targetFac = 0.25
 savenpz = 1
+saveuni = 1
 
 # source solver params
 dim = 2
@@ -120,14 +120,18 @@ for t in range(400):
 		target_vel.multConst( vec3(targetFac) )
 
 	# save
-	if 0 and t%2==0: 
+	if saveuni and t%2==0: 
 		frameNr = t / 2
-		framedir = "frame_%04d" % frameNr
+		framedir = simPath + "frame_%04d" % frameNr
 		os.mkdir( framedir )
 
 		target_vel.save("%s/vel_low_%04d_%04d.uni" % (framedir,simId,frameNr) )
 		target_density.save("%s/density_low_%04d_%04d.uni" % (framedir,simId,frameNr) )
-		density.save("%s/density_high_%04d_%04d.uni" % (framedir,simId,frameNr) )
+		density.save("%s/density_high_%04d_%04d.uni" % (framedir,simId,frameNr) )		
+		
+		target_vel.save("%svel_low_%04d.uni" % (simPath,frameNr) )
+		target_density.save("%sdensity_low_%04d.uni" % (simPath,frameNr) )
+		density.save("%sdensity_high_%04d.uni" % (simPath,frameNr) )
 	
 		#gui.screenshot( 'plume_%04d.png' % frameNr );
 

@@ -15,6 +15,6 @@
     "simNo": 1001,
     "type": "smoke",
     "name": "gen6combined",
-    "version": "mantaflow 0.12 64bit fp1 omp commit a9b92181e28a82c2029049791f875a6c1341d62b from Jun 17 2021, 02:28:17",
-    "creation_date": "2021-06-17 02:39:20"
+    "version": "mantaflow 0.12 64bit fp1 omp commit 5eb91aad7262705ba887b0ad3a4593819ff547c1 from Jun 17 2021, 13:31:11",
+    "creation_date": "2021-06-17 17:52:06"
 }

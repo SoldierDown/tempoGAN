@@ -185,8 +185,7 @@ elif dataDimension == 3:
 
 print("Random seed: {}".format(randSeed))
 np.random.seed(randSeed)
-# tf.set_random_seed(randSeed)
-tf.random.set_seed(randSeed)
+tf.set_random_seed(randSeed)
 
 # ---------------------------------------------
 

@@ -1,0 +1,114 @@
+Note: 
+
+Called on machine 'ip-172-17-18-222' with: tempoGAN.py randSeed 42 out 1 alwaysSave 1 fromSim 2006 toSim 2006 dataDim 2 batchSize 1 useVelocities 1 useVorticities 0 gif 0 genModel gen_resnet discModel disc_binclass basePath ../2ddata_gan/ loadPath ../2ddata_sim/ lambda_t 0.0 lambda_t_l2 0.0 frameMin 190 frameMax 199 data_fraction 1.0 adv_flag 0 dataAugmentation 0 premadeTiles 0 rot 2 load_model_test 0 load_model_no 199 simSize 128 tileSize 128
+
+Using parameters:
+	out: 1
+	basePath: ../2ddata_gan/
+	randSeed: 42
+	load_model_test: 0
+	load_model_no: 199
+	simSize: 128
+	tileSize: 128
+	dt: 1.0
+	loadPath: ../2ddata_sim/
+	fromSim: 2006
+	toSim: 2006
+	dataDim: 2
+	numOut: 200
+	saveOut: False
+	loadOut: -1
+	img: True
+	gif: 0
+	ref: False
+	genModel: gen_resnet
+	discModel: disc_binclass
+	learningRate: 0.0002
+	decayLR: False
+	dropout: 1.0
+	dropoutOutput: 1.0
+	adam_beta1: 0.5
+	weight_dld: 1.0
+	lambda: 1.0
+	lambda2: 0.0
+	lambda_f: 1.0
+	lambda2_f: 1.0
+	lambda2_l1: 1.0
+	lambda2_l2: 1.0
+	lambda2_l3: 1.0
+	lambda2_l4: 1.0
+	lambda_t: 0.0
+	lambda_t_l2: 0.0
+	batchSize: 1
+	batchSizeDisc: 1
+	batchSizeGen: 1
+	trainGAN: True
+	trainingIters: 100000
+	discRuns: 1
+	genRuns: 1
+	batchNorm: True
+	bnDecay: 0.999
+	use_spatialdisc: True
+	useVelocities: 1
+	useVorticities: 0
+	premadeTiles: 0
+	dataAugmentation: 0
+	minScale: 0.85
+	maxScale: 1.15
+	rot: 2
+	flip: 1
+	testPathStartNo: 0
+	valiInterval: 20
+	numValis: 10
+	outputInterval: 100
+	saveInterval: 200
+	alwaysSave: 1
+	keepMax: 3
+	genValiImg: -1
+	note: 
+	data_fraction: 1.0
+	frameMax: 199
+	frameMin: 190
+	adv_flag: 0
+	saveMetaData: 0
+	overlap: 3
+
+*****OUTPUT ONLY*****
+x: (?, 65536)
+
+	Generator (resize-resnett3-deep)
+Input: (?, 128, 128, 4)
+Max Depool : (?, 256, 256, 4)
+Max Depool : (?, 512, 512, 4)
+
+WARNING: The TensorFlow contrib module will not be included in TensorFlow 2.0.
+For more information, please see:
+  * https://github.com/tensorflow/community/blob/master/rfcs/20180907-contrib-sunset.md
+  * https://github.com/tensorflow/addons
+If you depend on functionality not listed there, please file an issue.
+
+Convolutional Layer 'g_cA0' (5, 5, 4, 8) (relu) : (?, 512, 512, 8), BN:True
+Convolutional Layer 'g_cB0' (5, 5, 8, 32) (None) : (?, 512, 512, 32), BN:True
+Convolutional Layer 'g_s0' (1, 1, 4, 32) (None) : (?, 512, 512, 32), BN:True
+Convolutional Layer 'g_cA1' (5, 5, 32, 128) (relu) : (?, 512, 512, 128), BN:True
+Convolutional Layer 'g_cB1' (5, 5, 128, 128) (None) : (?, 512, 512, 128), BN:True
+Convolutional Layer 'g_s1' (1, 1, 32, 128) (None) : (?, 512, 512, 128), BN:True
+Convolutional Layer 'g_cA2' (5, 5, 128, 32) (relu) : (?, 512, 512, 32), BN:True
+Convolutional Layer 'g_cB2' (5, 5, 32, 8) (None) : (?, 512, 512, 8), BN:True
+Convolutional Layer 'g_s2' (1, 1, 128, 8) (None) : (?, 512, 512, 8), BN:True
+Convolutional Layer 'g_cA3' (5, 5, 8, 2) (relu) : (?, 512, 512, 2), BN:False
+Convolutional Layer 'g_cB3' (5, 5, 2, 1) (None) : (?, 512, 512, 1), BN:False
+Convolutional Layer 'g_s3' (1, 1, 8, 1) (None) : (?, 512, 512, 1), BN:False
+	DOFs: 634214 , 0.634214 m 
+Model restored from ../2ddata_gan/test_0000/model_0199.ckpt.
+*****OUTPUT ONLY*****
+Generating 0
+Generating 1
+Generating 2
+Generating 3
+Generating 4
+Generating 5
+Generating 6
+Generating 7
+Generating 8
+Test finished, 9 outputs written to ../2ddata_gan/test_0000/out_0000-0199_0000/.

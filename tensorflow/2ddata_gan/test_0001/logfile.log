@@ -73,3 +73,139 @@ Using parameters:
 	saveMetaData: 0
 	overlap: 3
 
+x: (?, 256)
+
+	Generator (resize-resnett3-deep)
+Input: (?, 16, 16, 1)
+Max Depool : (?, 32, 32, 1)
+Max Depool : (?, 64, 64, 1)
+
+WARNING: The TensorFlow contrib module will not be included in TensorFlow 2.0.
+For more information, please see:
+  * https://github.com/tensorflow/community/blob/master/rfcs/20180907-contrib-sunset.md
+  * https://github.com/tensorflow/addons
+If you depend on functionality not listed there, please file an issue.
+
+Convolutional Layer 'g_cA0' (5, 5, 1, 2) (relu) : (?, 64, 64, 2), BN:True
+Convolutional Layer 'g_cB0' (5, 5, 2, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_s0' (1, 1, 1, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_cA1' (5, 5, 8, 128) (relu) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_cB1' (5, 5, 128, 128) (None) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_s1' (1, 1, 8, 128) (None) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_cA2' (5, 5, 128, 32) (relu) : (?, 64, 64, 32), BN:True
+Convolutional Layer 'g_cB2' (5, 5, 32, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_s2' (1, 1, 128, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_cA3' (5, 5, 8, 2) (relu) : (?, 64, 64, 2), BN:False
+Convolutional Layer 'g_cB3' (5, 5, 2, 1) (None) : (?, 64, 64, 1), BN:False
+Convolutional Layer 'g_s3' (1, 1, 8, 1) (None) : (?, 64, 64, 1), BN:False
+	DOFs: 547418 , 0.547418 m 
+
+	Discriminator (conditional binary classifier)
+Input: (?, 16, 16, 1)
+Max Depool : (?, 64, 64, 1)
+Input: (?, 64, 64, 2)
+Convolutional Layer 'd_c1' (4, 4, 2, 32) (lrelu) : (?, 32, 32, 32), BN:False
+Convolutional Layer 'd_c2' (4, 4, 32, 64) (lrelu) : (?, 16, 16, 64), BN:True
+Convolutional Layer 'd_c3' (4, 4, 64, 128) (lrelu) : (?, 8, 8, 128), BN:True
+Convolutional Layer 'd_c4' (4, 4, 128, 256) (lrelu) : (?, 8, 8, 256), BN:True
+Flatten: (?, 16384)
+Linear Layer 'd_l5': (?, 1)
+	DOFs: 706017 
+
+	Discriminator (conditional binary classifier)
+Input: (?, 16, 16, 1)
+Max Depool : (?, 64, 64, 1)
+Input: (?, 64, 64, 2)
+Convolutional Layer 'd_c1' (4, 4, 2, 32) (lrelu) : (?, 32, 32, 32), BN:False
+Convolutional Layer 'd_c2' (4, 4, 32, 64) (lrelu) : (?, 16, 16, 64), BN:True
+Convolutional Layer 'd_c3' (4, 4, 64, 128) (lrelu) : (?, 8, 8, 128), BN:True
+Convolutional Layer 'd_c4' (4, 4, 128, 256) (lrelu) : (?, 8, 8, 256), BN:True
+Flatten: (?, 16384)
+Linear Layer 'd_l5': (?, 1)
+	DOFs: 706017 
+
+	Generator (resize-resnett3-deep)
+Input: (?, 16, 16, 1)
+Max Depool : (?, 32, 32, 1)
+Max Depool : (?, 64, 64, 1)
+Convolutional Layer 'g_cA0' (5, 5, 1, 2) (relu) : (?, 64, 64, 2), BN:True
+Convolutional Layer 'g_cB0' (5, 5, 2, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_s0' (1, 1, 1, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_cA1' (5, 5, 8, 128) (relu) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_cB1' (5, 5, 128, 128) (None) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_s1' (1, 1, 8, 128) (None) : (?, 64, 64, 128), BN:True
+Convolutional Layer 'g_cA2' (5, 5, 128, 32) (relu) : (?, 64, 64, 32), BN:True
+Convolutional Layer 'g_cB2' (5, 5, 32, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_s2' (1, 1, 128, 8) (None) : (?, 64, 64, 8), BN:True
+Convolutional Layer 'g_cA3' (5, 5, 8, 2) (relu) : (?, 64, 64, 2), BN:False
+Convolutional Layer 'g_cB3' (5, 5, 2, 1) (None) : (?, 64, 64, 1), BN:False
+Convolutional Layer 'g_s3' (1, 1, 8, 1) (None) : (?, 64, 64, 1), BN:False
+	DOFs: 547418 , 0.547418 m 
+
+	Discriminator for Tempo (conditional binary classifier)
+
+	Tempo, nearby frames packed as channels, number 3
+Input: (?, 64, 64, 3)
+Convolutional Layer 't_c1' (4, 4, 3, 32) (lrelu) : (?, 32, 32, 32), BN:False
+Convolutional Layer 't_c2' (4, 4, 32, 64) (lrelu) : (?, 16, 16, 64), BN:True
+Convolutional Layer 't_c3' (4, 4, 64, 128) (lrelu) : (?, 8, 8, 128), BN:True
+Convolutional Layer 't_c4' (4, 4, 128, 256) (lrelu) : (?, 8, 8, 256), BN:True
+Flatten: (?, 16384)
+Linear Layer 't_l5': (?, 1)
+	DOFs: 706529 
+
+	Discriminator for Tempo (conditional binary classifier)
+
+	Tempo, nearby frames packed as channels, number 3
+Input: (?, 64, 64, 3)
+Convolutional Layer 't_c1' (4, 4, 3, 32) (lrelu) : (?, 32, 32, 32), BN:False
+Convolutional Layer 't_c2' (4, 4, 32, 64) (lrelu) : (?, 16, 16, 64), BN:True
+Convolutional Layer 't_c3' (4, 4, 64, 128) (lrelu) : (?, 8, 8, 128), BN:True
+Convolutional Layer 't_c4' (4, 4, 128, 256) (lrelu) : (?, 8, 8, 256), BN:True
+Flatten: (?, 16384)
+Linear Layer 't_l5': (?, 1)
+	DOFs: 706529 
+
+*****TRAINING STARTED*****
+
+(stop with ctrl-c)
+
+Iter 00200/40000, Cost:
+	disc: loss: train_loss=1.573596 - vali-real=1.846885 - vali-generated=0.162345, out: train=0.196894 - vali=0.190722
+	T D : loss[ -train (total=2.240966), -vali (real&1=0.644112) (generated&0=0.716498)]
+		sigmoidout[ -vali (real&1=0.565808) (generated&0=0.500926)
+	 gen: loss: train=2.380057 - L1(*k)=0.274 - vali=2.511252, DS out: train=0.145023 - vali=0.139554
+	 gen: loss[ -train (total Temp(*k)=1.336476) -vali (total Temp(*k)=0.714150)], DT out: real=0.569620 - gen=0.503437
+	disc: loss: disc=0.850765
+	gen: loss: gen=0.475168
+	 layer_cost: 27803.484375
+	Tdisc: loss: disc=0.534059
+	Tgen: loss: gen=0.472814
+	 tempo_cost: 0.541087
+	 l1_cost: 0.041482
+	 l2 tempo loss[ -train (total Temp(*k)=0.000000) -vali (total Temp(*k)=0.000000)]
+	200 Iterations took 171.12 seconds. (Est. next: Thu Jun 17 20:48:19 2021)
+	Estimated remaining time: 567.57 minutes. (Est. end: Fri Jun 18 06:13:03 2021)
+	Saved Model 0000 with cost 5.388395.
+
+Iter 00400/40000, Cost:
+	disc: loss: train_loss=1.110393 - vali-real=3.786524 - vali-generated=0.021800, out: train=0.030388 - vali=0.028563
+	T D : loss[ -train (total=1.628825), -vali (real&1=0.438825) (generated&0=1.038308)]
+		sigmoidout[ -vali (real&1=0.659000) (generated&0=0.642354)
+	 gen: loss: train=3.099151 - L1(*k)=0.177 - vali=5.047844, DS out: train=0.015050 - vali=0.020611
+	 gen: loss[ -train (total Temp(*k)=0.935838) -vali (total Temp(*k)=0.446230)], DT out: real=0.708793 - gen=0.660709
+	disc: loss: disc=0.679627
+	gen: loss: gen=0.019485
+	 layer_cost: 24064.667969
+	Tdisc: loss: disc=0.457366
+	Tgen: loss: gen=0.440537
+	 tempo_cost: 0.433719
+	 l1_cost: 0.031485
+	 l2 tempo loss[ -train (total Temp(*k)=0.000000) -vali (total Temp(*k)=0.000000)]
+	200 Iterations took 161.93 seconds. (Est. next: Thu Jun 17 20:50:58 2021)
+	Estimated remaining time: 550.37 minutes. (Est. end: Fri Jun 18 05:58:33 2021)
+	Saved Model 0001 with cost 4.995941.
+
+Iter 00600/40000, Cost:
+	disc: loss: train_loss=0.994787 - vali-real=3.736709 - vali-generated=0.064837, out: train=0.038292 - vali=0.038695
+	T D : loss[ -train (total=1.534566), -vali (real&1=0.496593) (generated&0=1.142981)]
