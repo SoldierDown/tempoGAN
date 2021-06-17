@@ -1,8 +1,0 @@
--DMANTAVERSION="0.12"
--DMT=1
--DOPENMP=1
--DNUMPY=1
--DGUI=1
--o
-/home/ubuntu/tempoGAN/build/pp/source/gui/moc_painter.cpp
-/home/ubuntu/tempoGAN/build/pp/source/gui/painter.h

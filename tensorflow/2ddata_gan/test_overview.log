@@ -1,5 +1,0 @@
-Output:, Loaded 0000, 0199 (est_0000/out_0000-0199_0000)
-	tile size: 128, seed: 42, dropout-out: 1.0000
-test_0001: 2D, ""
-	40000 Iters, gen: gen_resnet, disc: disc_binclass
-	gen-runs: 2, disc-runs: 2, lambda: 5.0, dropout: 1.0000(1.0000)
