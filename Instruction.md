@@ -50,3 +50,6 @@ python example_run_training.py
 python example_run_output.py
 # AWS + git + X forwarding
 ssh -X -A hsu-aws
+
+# undo git add
+git rm -r  --cached  <files>
