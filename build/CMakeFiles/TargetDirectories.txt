@@ -1,0 +1,5 @@
+/home/ubuntu/tempoGAN/build/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/tempoGAN/build/CMakeFiles/edit_cache.dir
+/home/ubuntu/tempoGAN/build/CMakeFiles/manta.dir
+/home/ubuntu/tempoGAN/build/CMakeFiles/doc.dir
+/home/ubuntu/tempoGAN/build/CMakeFiles/prep.dir

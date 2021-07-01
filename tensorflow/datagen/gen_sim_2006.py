@@ -15,7 +15,7 @@ simPath = '../2ddata_sim/'
 simPath,simId = ph.getNextSimPath(simId, simPath)
 # how much to reduce target sim size
 targetFac = 0.25
-savenpz = 1
+savenpz = 0
 saveuni = 1
 
 # source solver params
@@ -122,14 +122,16 @@ for t in range(400):
 	# save
 	if saveuni and t%2==0: 
 		frameNr = t / 2
+
+		""" 
+		# original
 		framedir = simPath + "frame_%04d" % frameNr
 		os.mkdir( framedir )
-
 		target_vel.save("%s/vel_low_%04d_%04d.uni" % (framedir,simId,frameNr) )
 		target_density.save("%s/density_low_%04d_%04d.uni" % (framedir,simId,frameNr) )
 		density.save("%s/density_high_%04d_%04d.uni" % (framedir,simId,frameNr) )		
-		
-		target_vel.save("%svel_low_%04d.uni" % (simPath,frameNr) )
+		"""
+		target_vel.save("%s/velocity_low_%04d.uni" % (simPath,frameNr) )
 		target_density.save("%sdensity_low_%04d.uni" % (simPath,frameNr) )
 		density.save("%sdensity_high_%04d.uni" % (simPath,frameNr) )
 	

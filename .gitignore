@@ -1,18 +1,18 @@
 # folder
-./build
-./build/*
-./tensorflow/2ddata_gan
-./tensorflow/2ddata_gan/*
-./tensorflow/2ddata_sim
-./tensorflow/2ddata_sim/*
-./tensorflow_v1
-./tensorflow_v1/*
-./tensorflow_v1_bak
-./tensorflow_v1_bak/*
-./tensorflow_v2
-./tensorflow_v2/*
-./tensorflow_v2_bak
-./tensorflow_v2_bak/*
+/build
+/build/*
+/tensorflow/2ddata_gan
+/tensorflow/2ddata_gan/*
+/tensorflow/2ddata_sim
+/tensorflow/2ddata_sim/*
+/tensorflow_v1
+/tensorflow_v1/*
+/tensorflow_v1_bak
+/tensorflow_v1_bak/*
+/tensorflow_v2
+/tensorflow_v2/*
+/tensorflow_v2_bak
+/tensorflow_v2_bak/*
 
 # Prerequisites
 *.d

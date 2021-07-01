@@ -1,13 +1,15 @@
 # Modification
 Use anaconda to manage python packages
+## Dependency
+sudo apt-get install python-dev
 ## Python include/lib path
 in tempoGAN/CMakeLists.txt
 ```
-set(NUMPY_INCLUDE_DIR "/home/ubuntu/anaconda3/envs/tempoGAN/lib/python3.9/site-packages/numpy/core/include")
+set(NUMPY_INCLUDE_DIR "/home/ubuntu/anaconda3/envs/tempoGAN/lib/python3.7/site-packages/numpy/core/include")
 ...
 ...
-set(PYTHON_INCLUDE_DIRS "/home/ubuntu/anaconda3/envs/tempoGAN/include/python3.9")
-set(PYTHON_LIBRARIES "/home/ubuntu/anaconda3/envs/tempoGAN/lib/libpython3.9.so")
+set(PYTHON_INCLUDE_DIRS "/home/ubuntu/anaconda3/envs/tempoGAN_otf/include/python3.7")
+set(PYTHON_LIBRARIES "/home/ubuntu/anaconda3/envs/tempoGAN_otf/lib/libpython3.7m.so")
 ```
 ## Package version
 1. in tempoGAN/tensorflow/tools/GAN.py, change 

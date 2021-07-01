@@ -48,6 +48,7 @@ seed( 42 )
 # default channel layouts
 C_LAYOUT = {
 	'dens':C_KEY_DEFAULT,
+	'vel':'vx,vy,vz',
 	'dens_vel':'d,vx,vy,vz'
 	}
 
@@ -883,7 +884,7 @@ class TileCreator(object):
 		
 		c_types = {
 			C_KEY_DEFAULT:[], #list of indices of default channels. e.g. for normal sim data [0]
-			C_KEY_VELOCITY:[], #list of ordered (x,y,z; chnage to z,y,x to match data?) triples of velocity sets. e.g. for normal sim data [[1,2,3]]
+			C_KEY_VELOCITY:[], #list of ordered (x,y,z; change to z,y,x to match data?) triples of velocity sets. e.g. for normal sim data [[1,2,3]]
 			C_KEY_VORTICITY:[]
 			}
 		

@@ -22,7 +22,7 @@ import paramhelpers as ph
 
 # Main params  ----------------------------------------------------------------------#
 steps    = 200
-simNo    = 1001  # start ID
+simNo    = 1000  # start ID
 showGui  = 1
 basePath = '../data/'
 npSeedstr   = "-1"
@@ -401,8 +401,7 @@ while t < steps + timeOffset:
 		if 1 and len(inflowSrc)>0:
 			velOffset *= 0.5;  xl_velOffset *= 0.5;  # re-centering reduced
 
-		# high res sim
-		
+		# high res sim 
 		interpolateGrid( target=xl_tmp, source=tmp )
 		interpolateMACGrid( source=vel, target=xl_vel )
 		

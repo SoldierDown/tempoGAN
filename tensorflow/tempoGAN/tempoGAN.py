@@ -134,17 +134,17 @@ if not (dataDimension == 2 or dataDimension == 3):
 if toSim==-1:
 	toSim = fromSim
 
-channelLayout_low = 'd'
-lowfilename = "density_low_%04d.uni"
-highfilename = "density_high_%04d.uni"
-mfl = ["density"]
-mfh = ["density"]
+channelLayout_low = 'vx,vy,vz'
+lowfilename = "velocity_low_%04d.uni"
+highfilename = "velocity_high_%04d.uni"
+mfl = ["velocity"]
+mfh = ["velocity"]
 if outputOnly: 
 	highfilename = None
 	mfh = None
-if useVelocities:
-	channelLayout_low += ',vx,vy,vz'
-	mfl= np.append(mfl, "velocity")
+# if useVelocities:
+# 	channelLayout_low += ',vx,vy,vz'
+# 	mfl= np.append(mfl, "velocity")
 
 dirIDs = np.linspace(fromSim, toSim, (toSim-fromSim+1),dtype='int16')
 
@@ -195,12 +195,12 @@ n_output = tileSizeHigh ** 2
 if dataDimension == 3:
 	n_input  *= tileSizeLow
 	n_output *= (tileSizeLow*upRes)
-n_inputChannels = 1
+n_inputChannels = 3
 
-if useVelocities:
-	n_inputChannels += 3
-if useVorticities:
-	n_inputChannels += 3
+# if useVelocities:
+# 	n_inputChannels += 3
+# if useVorticities:
+# 	n_inputChannels += 3
 n_input *= n_inputChannels
 
 # init paths
@@ -535,7 +535,7 @@ if not outputOnly:
 	gen_update_ops = update_ops[:]
 	ori_gen_update_ops = update_ops[:]
 
-	#variables to be used in the different otimization steps
+	#variables to be used in the different optimization steps
 	vars = tf.trainable_variables()
 	g_var = [var for var in vars if "g_" in var.name]
 	if use_spatialdisc:
