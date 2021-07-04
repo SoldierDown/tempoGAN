@@ -110,6 +110,8 @@ ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or 
 saveMD          = int(ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
 overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifile output, overlap of voxels
 
+# extras
+collapse_z		= int(ph.getParam( "collapse_z",  			  True ))>0		# collapse z
 ph.checkUnusedParams()
 
 useTempoD = False
@@ -134,9 +136,16 @@ if not (dataDimension == 2 or dataDimension == 3):
 if toSim==-1:
 	toSim = fromSim
 
-channelLayout_low = 'vx,vy,vz'
+if dataDimension == 2:
+	channelLayout_low = 'vx,vy'
+else: 
+	channelLayout_low = 'vx,vy,vz'	
+
+# channelLayout_low = 'vx,vy,vz'
+
 lowfilename = "velocity_low_%04d.uni"
 highfilename = "velocity_high_%04d.uni"
+
 mfl = ["velocity"]
 mfh = ["velocity"]
 if outputOnly: 
@@ -145,6 +154,49 @@ if outputOnly:
 # if useVelocities:
 # 	channelLayout_low += ',vx,vy,vz'
 # 	mfl= np.append(mfl, "velocity")
+
+# for advecting particles
+particle_pos = []
+particle_vel = []
+
+test_path = ''
+from PIL import Image, ImageDraw
+# init paths
+if not load_model_test == -1:
+	if not os.path.exists(basePath + 'test_%04d/' % load_model_test):
+		print('ERROR: Test to load does not exist.')
+	load_path = basePath + 'test_%04d/model_%04d.ckpt' % (load_model_test, load_model_no)
+	if outputOnly:
+		out_path_prefix = 'out_%04d-%04d' % (load_model_test,load_model_no)
+		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
+
+	else:
+		test_path,_ = ph.getNextTestPath(testPathStartNo, basePath)
+
+else:
+	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
+
+
+def drawParticles(name):
+	w = 2048
+	h = 2048
+	im = Image.new('RGB', (w, h), (0, 0, 0))
+	draw = ImageDraw.Draw(im)
+	for pos in particle_pos:
+		draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+	im.save(test_path + '/' + name+'.jpg', quality=95)
+
+
+if outputOnly:
+	# read particles
+	with open('../2ddata_sim/sim_1006/particle_positions.txt') as f:
+		lines = [line.rstrip() for line in f]
+		for line in lines:
+			vel = line.split(' ')
+			print(vel)
+			particle_pos.append(np.array(np.float32([vel[0], vel[1]])))
+			particle_vel.append(np.array([0., 0.]))
+	drawParticles('ori')
 
 dirIDs = np.linspace(fromSim, toSim, (toSim-fromSim+1),dtype='int16')
 
@@ -157,8 +209,8 @@ if (outputOnly):
 	useDataAugmentation = 0
 
 if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
+	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim=dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
+	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
 else:
 	lowparalen = len(mfl)
 	highparalen = len(mfh)
@@ -170,12 +222,26 @@ else:
 	mfh= np.append(mfh_tempo, mfh)
 	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
 	moh = np.append(moh, np.ones(highparalen)*2)
+	print('lowparalen: {}'.format(lowparalen))
+	print('highparalen: {}'.format(highparalen))
+	print('mfl_tempo: {}'.format(mfl_tempo))
+	print('mfl: {}'.format(mfl))
+	print('mol: {}'.format(mol))
+	print('mfh_tempo: {}'.format(mfh_tempo))
+	print('mfh: {}'.format(mfh))
+	print('moh: {}'.format(moh))
+	# input('hanging')
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
+	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
 
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
+print('inputx size: {}'.format(inputx.shape))
+print('y : {}'.format(y))
+# input('hanging')
+# print('y size: {}'.format(y.shape))
+# input('pause')
 if (not outputOnly): 
 	tiCr.addData(inputx,y)
 elif dataDimension == 3:
@@ -195,28 +261,16 @@ n_output = tileSizeHigh ** 2
 if dataDimension == 3:
 	n_input  *= tileSizeLow
 	n_output *= (tileSizeLow*upRes)
-n_inputChannels = 3
+n_inputChannels = 2
 
 # if useVelocities:
 # 	n_inputChannels += 3
 # if useVorticities:
 # 	n_inputChannels += 3
 n_input *= n_inputChannels
+n_output *= n_inputChannels
 
-# init paths
-if not load_model_test == -1:
-	if not os.path.exists(basePath + 'test_%04d/' % load_model_test):
-		print('ERROR: Test to load does not exist.')
-	load_path = basePath + 'test_%04d/model_%04d.ckpt' % (load_model_test, load_model_no)
-	if outputOnly:
-		out_path_prefix = 'out_%04d-%04d' % (load_model_test,load_model_no)
-		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
 
-	else:
-		test_path,_ = ph.getNextTestPath(testPathStartNo, basePath)
-
-else:
-	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
 # logging & info
 sys.stdout = ph.Logger(test_path)
@@ -225,6 +279,7 @@ print("\nCalled on machine '"+ os.uname()[1] +"' with: " + str(" ".join(sys.argv
 print("\nUsing parameters:\n"+ph.paramsToString())
 ph.writeParams(test_path+"params.json") # export parameters in human readable format
 
+print('test path: {}'.format(test_path))
 if outputOnly:
 	print('*****OUTPUT ONLY*****')
 
@@ -241,6 +296,8 @@ x = tf.placeholder(tf.float32, shape=[None, n_input])
 x_disc = tf.placeholder(tf.float32, shape=[None, n_input])
 #real input for disc
 y = tf.placeholder(tf.float32, shape=[None, n_output])
+# print('n_input: {}'.format(n_input))
+# print('n_output: {}'.format(n_output))
 kk = tf.placeholder(tf.float32)
 kk2 = tf.placeholder(tf.float32)
 kkt = tf.placeholder(tf.float32)
@@ -252,7 +309,7 @@ print("x: {}".format(x.get_shape()))
 # --- main graph setup ---
 
 rbId = 0
-def resBlock(gan, inp, s1,s2, reuse, use_batch_norm, filter_size=3):
+def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3):
 	global rbId
 
 	# convolutions of resnet block
@@ -276,24 +333,25 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
 	print("\n\tGenerator (resize-resnett3-deep)")
 	with tf.variable_scope("generator", reuse=reuse) as scope:
-
 		if dataDimension == 2:
-			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) #NHWC
+			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, 2]) #NHWC
 			patchShape = [2,2]
 		elif dataDimension == 3:
-			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, n_inputChannels]) #NDHWC
+			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, 3]) #NDHWC
 			patchShape = [2,2,2]
 		rbId = 0
 		gan = GAN(_in)
 	
 		gan.max_depool()
 		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
+		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, 5)
 
-		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, 5)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False,5)
+		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, 5)
+		ru4 = resBlock(gan, ru3, 2, n_inputChannels,  reuse, False,5)
+		# print('ru4: {}'.format(ru4.shape))
+		# print('n_output: {}'.format(n_output))
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
@@ -309,23 +367,34 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
 			shape = tf.shape(in_low)
-			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
-			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) #NHWC
-			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 1])
+			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
+			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input)])
+			print(in_low)
+			# print('in_low: {}'.format(in_low.shape))
+			# print('tileSizeLow*tileSizeLow*2: {}'.format(tileSizeLow*tileSizeLow*2))
+			# print('in_high: {}'.format(in_high.shape))
+			# print('tileSizeHigh*tileSizeHigh*2: {}'.format(tileSizeHigh*tileSizeHigh*2))
+			# input('disc')
+			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 2])).max_depool(height_factor = upRes,width_factor=upRes) #NHWC
+			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 2])
 			filter=[4,4]
 			stride = [2]
 			stride2 = [2]
 		elif dataDimension == 3:
 			shape = tf.shape(in_low)
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
-			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, 1])).max_depool(depth_factor = upRes,height_factor = upRes,width_factor = upRes) #NDHWC
-			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, tileSizeHigh, 1]) # dim D is not upscaled
+			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, 3])).max_depool(depth_factor = upRes,height_factor = upRes,width_factor = upRes) #NDHWC
+			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, tileSizeHigh, 3]) # dim D is not upscaled
 			filter=[4,4,4]
 			stride = [2,2]
 			stride2 = [2]
 
 		#merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
 		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) #64
+		# print('tileSizeLow: {}'.format(tileSizeLow))
+		# print('tileSizeHigh: {}'.format(tileSizeHigh))
+		# print('in_low size: {}'.format(in_low.shape))
+		# print('in_high size: {}'.format(in_high.shape))
 		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
 
 		d2,_ = gan.convolutional_layer(64, filter, lrelu, stride=stride2, name="d_c2", reuse=reuse, batch_norm=use_batch_norm, train=train) #64
@@ -417,6 +486,8 @@ def disc_test(in_low, in_high, reuse=False, use_batch_norm=False, train=None):
 
 		#merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
 		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) #64
+		# print('in_low: {}'.format(in_low.shape))
+		# print('in_high: {}'.format(in_high.shape))
 		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
 		shape=gan.flatten()
 		gan.fully_connected_layer(1, None, name="d_l5")
@@ -433,7 +504,9 @@ def disc_test(in_low, in_high, reuse=False, use_batch_norm=False, train=None):
 
 #change used models for gen and disc here #other models in NNmodels.py
 gen_model = locals()[genModel]
+print('generator done')
 disc_model = locals()[discModel]
+print('discriminator done')
 disc_time_model = disc_binclass_cond_tempo # tempo dis currently fixed
 
 #set up GAN structure
@@ -492,6 +565,8 @@ def tensorResample(value, pos, name='Resample'):
 			first_idx = tf.ones_like(axis_wei, dtype=tf.int32)
 			first_idx = tf.cumsum(first_idx, axis=0, exclusive=True)
 			cell_value_list.append(tf.concat([first_idx, axis_idx], -1))
+			# print('first_idx: {}'.format(first_idx.shape))
+			# print('axis_idx: {}'.format(axis_idx.shape))
 
 		values_new = tf.gather_nd(value, cell_value_list[0]) * cell_weight_list[
 			0]  # broadcasting used, shape (..., res_x2, res_x1, channels )
@@ -504,6 +579,8 @@ if not outputOnly:
 	if use_spatialdisc:
 		disc_sigmoid = tf.reduce_mean(tf.nn.sigmoid(disc))
 		gen_sigmoid = tf.reduce_mean(tf.nn.sigmoid(gen))
+		# print('gen sigmoid shape: {}'.format(gen_sigmoid.shape))
+		# exit()
 
 		# loss of the discriminator with real input 
 		disc_loss_disc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc, labels=tf.ones_like(disc)))
@@ -749,6 +826,8 @@ def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, us
 		Velinput = batch_xs[:,:,:,:,tiCr.c_lists[tc.DATA_KEY_LOW][tc.C_KEY_VELOCITY][0]]
 		Vorinput = addVorticity(Velinput)
 		batch_xs = np.concatenate((batch_xs, Vorinput), axis = 4)
+		# print('batch_xs: {}'.format(batch_xs.shape))
+		# print('Vorinput: {}'.format(Vorinput.shape))
 	batch_xs = np.reshape(batch_xs, (-1, n_input))
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
@@ -764,6 +843,8 @@ def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False
 		Velinput = batch_xts[:,:,:,:,tiCr.c_lists[tc.DATA_KEY_LOW][tc.C_KEY_VELOCITY][0]]
 		Vorinput = addVorticity(Velinput)
 		batch_xts = np.concatenate((batch_xts, Vorinput), axis = 4)
+		# print('batch_xts: {}'.format(batch_xts.shape))
+		# print('Vorinput: {}'.format(Vorinput.shape))
 		batch_xts = np.reshape(batch_xts,[real_batch_sz, -1])
 	return batch_xts, batch_yts, batch_y_pos
 
@@ -779,18 +860,198 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 			batch_xs = inputx[frame_no]
 		resultTiles = []
 		for tileno in range(batch_xs.shape[0]):
+			# channels: 3
+			# ts: 16, tn: 4
+			# n_input = ts x ts x channels
+			# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+			# batch_xs_in = (tn * tn, n_input)
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
-			imgSz = int(resultTiles.shape[1]**(1.0/2) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz, 1])
+			imgSz = int((resultTiles.shape[1]/n_inputChannels)**(1.0/2) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_inputChannels])
 		else:
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+		# TODO: uncomment
+		# tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
+		# tc.savePngsGrayscale(resultTiles,outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+
+dt=1./960.
+def moveParticles():
+	for idx, pos in enumerate(particle_pos):
+		vel = particle_vel[idx]
+		pos += vel * dt
+		particle_pos[idx] = pos
+
+def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]):
+	'''
+		tiles_in_image: (y,x)
+		tiles: shape: (tile,y,x,c)
+	'''
+	tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+	if len(tiles)%tilesInImage!=0: 
+		print('ERROR: number of tiles does not match tiles per image')
+		return
+	tiles = np.asarray(tiles)
+	noImages = len(tiles)//tilesInImage
+	print('noImages: {}, len(tiles): {}, tilesInImage: {}'.format(noImages, len(tiles), tilesInImage))
+	grid = []
+	for image in range(noImages):
+		img = []
+		#combine tiles to image
+		for y in range(tiles_in_image[0]):
+			offset=image*tilesInImage + y*tiles_in_image[1]
+			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+		img = np.concatenate(img, axis=0) #combine y
+		# move channels to first dim.
+		img_c = np.rollaxis(img, -1, 0)
+		grid = img
+		# print('img size: {}'.format(img_c.shape)) # 3 x 256 x256
+		# if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
+		# 	if plot_vel_x_y: saveVel(img, path, imageCounter+image)
+		# 	if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
+		# if len(channels) == 1:
+		# 	scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+		# else:
+		# 	for i in channels:
+		# 		scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
+	
+
+
+	dx = 1./simSizeHigh
+	inv_dx = simSizeHigh
+	for idx, pos in enumerate(particle_pos):
+		pos2d = np.array([pos[0], pos[1]])
+
+		# dx = 1/256
+		# print(pos2d) # checked correct
+		
+		vel = np.array([0., 0.])
+
+		number_of_ghost_cells_plus_one = 1
+		closest_cell=np.int16(pos2d * inv_dx+number_of_ghost_cells_plus_one)
+		closest_cell_position = (np.float32(closest_cell) - np.array([1., 1.])) * dx + .5 * np.array([dx, dx])
+		X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
+		w = np.array([	[0., 0.],
+						[0., 0.],
+						[0., 0.]])
+		for axis in range(2):
+			x = X_eval[axis] * inv_dx
+			w[0][axis] = abs(.5*x*x - 1.5*x + 1.125)
+			x -= 1
+			w[1][axis] = abs(-x*x+.75)
+			x -= 1
+			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
+		vel = np.array([0., 0.], dtype=np.float32)
+		for i in range(3):
+			for j in range(3):
+				weight = w[i][0] * w[j][1]
+				cur_cell = closest_cell + np.array([i, j])
+				ci, cj = cur_cell[0], cur_cell[1]
+				grid_vel = grid[ci][cj]
+				cell_vel = np.array([grid_vel[0], grid_vel[1]], dtype=np.float32)
+				print('grid_vel: {}'.format(grid_vel))
+				vel += cell_vel*weight
+		particle_vel[idx] = np.array([vel[0], vel[1]])
+
+
+    # // P2G
+    # for (int i = 0; i < 3; i++) {
+    #   for (int j = 0; j < 3; j++) {
+    #     auto dpos = (Vec(i, j) - fx) * dx;
+    #     // Translational momentum
+    #     Vector3 mass_x_velocity(p.v * particle_mass, particle_mass);
+    #     grid[base_coord.x + i][base_coord.y + j] += (
+    #       w[i].x*w[j].y * (mass_x_velocity + Vector3(affine * dpos, 0))
+    #     );
+    #   }
+    # }
+#   }
+
+
+def savePngs(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1]):
+	'''
+		tiles_in_image: (y,x)
+		tiles: shape: (tile,y,x,c)
+	'''
+	tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+	if len(tiles)%tilesInImage!=0: 
+		print('ERROR: number of tiles does not match tiles per image')
+		return
+	tiles = np.asarray(tiles)
+	noImages = len(tiles)//tilesInImage
+
+	for image in range(noImages):
+		img = []
+		#combine tiles to image
+		for y in range(tiles_in_image[0]):
+			offset=image*tilesInImage + y*tiles_in_image[1]
+			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+		img = np.concatenate(img, axis=0) #combine y
+		# move channels to first dim.
+		img_c = np.rollaxis(img, -1, 0)
+		if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
+			if plot_vel_x_y: saveVel(img, path, imageCounter+image)
+			if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
+		if len(channels) == 1:
+			scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+		else:
+			for i in channels:
+				scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
+
+
+# evaluate the generator (sampler) on the first step of the first simulation and output result
+def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
+	if premadeTiles:
+		#todo output for premadetiles
+		pass
+	else:
+		if (not outputOnly):
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities, useVorticities = useVorticities)
+		else:
+			print(inputx.shape)
+			batch_xs = inputx[frame_no]
+		resultTiles = []
+		# for tileno in range(batch_xs.shape[0]):
+		# 	# channels: 2/3
+		# 	# ts: 16, tn: 4
+		# 	# n_input = ts x ts x channels
+		# 	# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+		# 	# batch_xs_in = (tn * tn, n_input)
+		# 	print('batch_xs: {}'.format(batch_xs.shape))
+		# 	batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
+		# 	results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+		# 	resultTiles.extend(results)
+		for tileno in range(1):
+			# channels: 2/3
+			# ts: 16, tn: 4
+			# n_input = ts x ts x channels
+			# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+			# batch_xs_in = (tn * tn, n_input)
+			print('batch_xs: {}'.format(batch_xs.shape))
+			print('n_input: {}'.format(n_input))
+			# input('hanging')
+			batch_xs_in = np.reshape(batch_xs, [-1, n_input])
+			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+			resultTiles.extend(results)
+		resultTiles = np.array(resultTiles)
+		if dataDimension == 2: # resultTiles may have a different size
+			imgSz = int((resultTiles.shape[1]/n_inputChannels)**(1.0/2) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_inputChannels])
+		else:
+			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+		# TODO: uncomment
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		tc.savePngsGrayscale(resultTiles,outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image)
+		moveParticles()
+		drawParticles(str(frame_no))
+		# savePngs(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+
+
 
 def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if dataDimension == 2:
@@ -988,7 +1249,17 @@ if not outputOnly and trainGAN:
 			if use_spatialdisc:
 				for runs in range(discRuns):
 					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
-					_, disc_cost, summary,disc_sig,gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc,disc_sigmoid,gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
+					# print('batch_xs size: {}'.format(batch_xs.shape))
+					# print('batch_ys size: {}'.format(batch_ys.shape))
+					# print('metadata: {}'.format(run_metadata))
+					# print('batch_xs: {}'.format(batch_xs.shape))
+					# print('batch_ys: {}'.format(batch_ys.shape))
+					# print('dropout: {}'.format(dropout))
+					# input('hanging')
+					_, disc_cost, summary,disc_sig,gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc,disc_sigmoid,gen_sigmoid], 
+																	feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}, 
+																	options=run_options, run_metadata=run_metadata )
+					# print('session finished')
 					avgCost_disc += disc_cost
 					summary_writer.add_summary(summary, iteration)
 					if saveMD: summary_writer.add_run_metadata(run_metadata, 'dstep%d' % iteration)
@@ -1062,7 +1333,6 @@ if not outputOnly and trainGAN:
 					avgCost_gen += gen_cost
 					summary_writer.add_summary(summary, iteration)
 				if saveMD: summary_writer.add_run_metadata(run_metadata, 'gstep%d' % iteration)
-
 
 			# save model
 			if ((disc_cost+gen_cost < lastCost) or alwaysSave) and (lastSave >= saveInterval):
@@ -1297,9 +1567,10 @@ elif outputOnly:
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:
-			generateValiImage(fromSim,layerno,outPath = test_path, imageindex = layerno)
+			# generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
+			generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
 		else:
-			generate3DUni(fromSim,layerno,outPath = test_path, imageindex = layerno)
+			generate3DUni(fromSim, layerno,outPath = test_path, imageindex = layerno)
 
 	if outputGif and dataDimension == 2: #write gif
 		print("Writing gif")
