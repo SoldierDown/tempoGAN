@@ -53,3 +53,14 @@ ssh -X -A hsu-aws
 
 # undo git add
 git rm -r  --cached  <files>
+
+
+#
+0, x, y -> 64, 64, 0
+1, x, y -> 64, 64, 1
+
+1-indexed: 1->3, 2->2, 3->1
+
+need: 1, 64, 64 
+
+counts(1), counts(2), counts(3) = 64, 64, 1 -> 1, 64, 64 

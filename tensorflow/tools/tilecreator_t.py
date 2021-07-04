@@ -48,13 +48,19 @@ seed( 42 )
 # default channel layouts
 C_LAYOUT = {
 	'dens':C_KEY_DEFAULT,
-	'vel':'vx,vy,vz',
+	'vel2d':'vx,vy',
+	'vel3d':'vx,vy,vz',
 	'dens_vel':'d,vx,vy,vz'
 	}
 
-class TileCreator(object):
+# C_LAYOUT = {
+# 	'dens':C_KEY_DEFAULT,
+# 	'vel':'vx,vy,vz',
+# 	'dens_vel':'d,vx,vy,vz'
+# 	}
 
-	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['dens_vel'], channelLayout_high=C_LAYOUT['dens'], highIsLabel=False, loadPN=False, padding=0):
+class TileCreator(object):
+	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['vel2d'], channelLayout_high=C_LAYOUT['vel2d'], highIsLabel=False, loadPN=False, padding=0):
 		'''
 			tileSizeLow, simSizeLow: int, [int,int] if 2D, [int,int,int]
 			channelLayout: 'key,key,...'
@@ -82,22 +88,38 @@ class TileCreator(object):
 		self.dim = dim
 		# TILE SIZE
 		if np.isscalar(tileSizeLow):
+			# print('1')
+			# input('hanging')
 			self.tileSizeLow = [tileSizeLow, tileSizeLow, tileSizeLow]
 		elif len(tileSizeLow)==2 and self.dim==2:
+			# print('2')
+			# input('hanging')
 			self.tileSizeLow = [1]+tileSizeLow
 		elif len(tileSizeLow)==3:
+			# print('3')
+			# input('hanging')
 			self.tileSizeLow = tileSizeLow
 		else:
+			# print('4')
+			# input('hanging')
 			self.TCError('Tile size mismatch.')
 		self.tileSizeLow = np.asarray(self.tileSizeLow)
 		#SIM SIZE
 		if np.isscalar(simSizeLow):
+			# print('1')
+			# input('hanging')
 			self.simSizeLow = [simSizeLow, simSizeLow, simSizeLow]
 		elif len(simSizeLow)==2 and self.dim==2:
+			# print('2')
+			# input('hanging')
 			self.simSizeLow = [1]+simSizeLow
 		elif len(simSizeLow)==3:
+			# print('3')
+			# input('hanging')
 			self.simSizeLow = simSizeLow
 		else:
+			# print('4')
+			# input('hanging')
 			self.TCError('Simulation size mismatch.')
 		self.simSizeLow = np.asarray(self.simSizeLow)
 		
@@ -127,10 +149,17 @@ class TileCreator(object):
 		self.useDataAug = False
 		
 		#CHANNELS
+		# print('channelLayout_low: {}'.format(channelLayout_low))
+		# print('channelLayout_high: {}'.format(channelLayout_high))
+		# exit()
 		self.c_lists = {}
 		self.c_low, self.c_lists[DATA_KEY_LOW] = self.parseChannels(channelLayout_low)
 		self.c_high, self.c_lists[DATA_KEY_HIGH] = self.parseChannels(channelLayout_high)
 
+		print('c_low: {}, c_lists[DATA_KEY_LOW]: {}'.format(self.c_low, self.c_lists[DATA_KEY_LOW]))
+		print('c_high: {}, c_lists[DATA_KEY_HIGH]: {}'.format(self.c_high, self.c_lists[DATA_KEY_HIGH]))
+		# input('hanging')
+		# exit()
 		# print info
 		print('\n')
 		print('Dimension: {}, time dimension: {}'.format(self.dim,self.dim_t))
@@ -178,7 +207,9 @@ class TileCreator(object):
 		
 		#DATA SHAPES
 		self.tile_shape_low = np.append(self.tileSizeLow, [self.data_flags[DATA_KEY_LOW]['channels']])
+		# print('tile shape low: {}'.format(self.tile_shape_low))
 		self.frame_shape_low = np.append(self.simSizeLow, [self.data_flags[DATA_KEY_LOW]['channels']])
+		# print('frame shape low: {}'.format(self.frame_shape_low))
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
 			self.tile_shape_high = np.append(self.tileSizeHigh, [self.data_flags[DATA_KEY_HIGH]['channels']])
 			self.frame_shape_high = np.append(self.simSizeHigh, [self.data_flags[DATA_KEY_HIGH]['channels']])
@@ -300,6 +331,7 @@ class TileCreator(object):
 		'''
 		# check data shape
 		low = np.asarray(low)
+		print('low: {}'.format(low.shape))
 		high = np.asarray(high)
 		
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
@@ -309,14 +341,20 @@ class TileCreator(object):
 			self.TCError('Input must be single 3D data or sequence of 3D data. Format: ([batch,] z, y, x, channels). For 2D use z=1.')
 
 		if (low.shape[-1]!=(self.dim_t * self.data_flags[DATA_KEY_LOW]['channels'])):
-			self.TCError('Dim_t ({}) * Channels ({}, {}) configured for LOW-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_LOW]['channels'], self.c_low,  low.shape[-1]) )
+			print(low.shape[-1])
+			print(self.dim_t * self.data_flags[DATA_KEY_LOW]['channels'])
+			print('Dim_t ({}) * Channels ({}, {}) configured for LOW-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_LOW]['channels'], self.c_low,  low.shape[-1]) )
+			exit()
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
 			if (high.shape[-1]!=(self.dim_t * self.data_flags[DATA_KEY_HIGH]['channels'])):
-				self.TCError('Dim_t ({}) * Channels ({}, {}) configured for HIGH-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_HIGH]['channels'], self.c_high, high.shape[-1]) )
+				print('Dim_t ({}) * Channels ({}, {}) configured for HIGH-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_HIGH]['channels'], self.c_high, high.shape[-1]) )
+				exit()
 		
 		low_shape = low.shape
 		high_shape = high.shape
 		if len(low.shape)==5: #sequence
+			# print('sequence')
+			# input('hanging')
 			if low.shape[0]!=high.shape[0]: #check amount
 				self.TCError('Unequal amount of low ({}) and high ({}) data.'.format(low.shape[1], high.shape[1]))
 			# get single data shape
@@ -325,6 +363,8 @@ class TileCreator(object):
 				high_shape = high_shape[1:]
 			else: high_shape = [1]
 		else: #single
+			# print('single')
+			# input('hanging')
 			low = [low]
 			high = [high]
 		
@@ -335,13 +375,21 @@ class TileCreator(object):
 				self.TCError('Tile shape mismatch: is - specified\n\tlow: {} - {}\n\thigh {} - {}'.format(low_shape, self.tile_shape_low, high_shape,self.tile_shape_high))
 		else:
 			single_frame_low_shape = list(low_shape)
+			print(single_frame_low_shape)
+			# input('hanging')
 			single_frame_high_shape = list(high_shape)
 			single_frame_low_shape[-1] = low_shape[-1] // self.dim_t
 			if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
 				single_frame_high_shape[-1] = high_shape[-1] // self.dim_t
 			
+			print(single_frame_low_shape)
+			print(self.frame_shape_low)
+			print(single_frame_high_shape)
+			print(self.frame_shape_high)
+			# input('hanging')
 			if not np.array_equal(single_frame_low_shape, self.frame_shape_low) or not np.array_equal(single_frame_high_shape,self.frame_shape_high):
-				self.TCError('Frame shape mismatch: is - specified\n\tlow: {} - {}\n\thigh: {} - {}, given dim_t as {}'.format(single_frame_low_shape, self.frame_shape_low, single_frame_high_shape,self.frame_shape_high, self.dim_t))
+				print('Frame shape mismatch: is - specified\n\tlow: {} - {}\n\thigh: {} - {}, given dim_t as {}'.format(single_frame_low_shape, self.frame_shape_low, single_frame_high_shape,self.frame_shape_high, self.dim_t))
+				exit()
 
 		self.data[DATA_KEY_LOW].extend(low)
 		self.data[DATA_KEY_HIGH].extend(high)
@@ -436,6 +484,8 @@ class TileCreator(object):
 		'''
 		if isTraining:
 			if self.setBorders[0]<1:
+				print('setBorders: '.format(self.setBorders))
+				# input('hanging')
 				self.TCError('no training data.')
 		else:
 			if (self.setBorders[1] - self.setBorders[0])<1:

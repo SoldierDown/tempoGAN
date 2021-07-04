@@ -134,8 +134,6 @@ for t in range(400):
 		target_vel.save("%s/velocity_low_%04d.uni" % (simPath,frameNr) )
 		target_density.save("%sdensity_low_%04d.uni" % (simPath,frameNr) )
 		density.save("%sdensity_high_%04d.uni" % (simPath,frameNr) )
-	
-		#gui.screenshot( 'plume_%04d.png' % frameNr );
 
 	if savenpz and t%2==0: 
 		tf = t / 2

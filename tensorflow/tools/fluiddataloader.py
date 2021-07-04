@@ -31,7 +31,7 @@ class FluidDataLoader(object):
 	def __init__(self, print_info=1, base_path="../data/", simdirname="sim_%04d/", indices=[], 
 				filename=None, filename_index_min=0, filename_index_max=200, wildcard=None,
 				array_y=None, filename_y=None, func_y=None, data_fraction=1.,
-				shape=None, shape_y=None, collapse_z=False, shuffle_on_load=False,
+				shape=None, shape_y=None, collapse_z=True, shuffle_on_load=False,
 				multi_file_list=None, multi_file_list_y=None, multi_file_idxOff=None, multi_file_idxOff_y=None,
 				postproc_func=None, postproc_func_y=None,
 				np_load_string=None , np_load_string_y=None , oldNamingScheme=False):
@@ -209,6 +209,8 @@ class FluidDataLoader(object):
 					fny = os.path.join(search_dir, fny) 
 					self.yfn.append(fny)
 					self.have_y_npz = True # flag to indicate we have np arrays in y
+					# print('name {}'.format(self.filename_y))
+					# input('hanging')
 
 				if self.array_y is not None:
 					if self.y is None:
@@ -268,9 +270,19 @@ class FluidDataLoader(object):
 	def removeZComponent(self,x):
 		""" Optional, and 2D only: remove Z entry from 3d vec fields
 		"""
-		if not self.collapse_z: return x
-		if not self.getDim( x.shape )==2: return x
-		if not x.shape[3]==3: return x  # only apply for pure velocity grids with 3 channels
+		# if not self.collapse_z: 
+		# 	# print('not collapse_z')
+		# 	# input('hanging')
+		# 	return x
+		if not self.getDim( x.shape )==2: 
+			# print('x.shape.dim: {}'.format(self.getDim(x.shape)))
+			# input('hanging')
+			return x
+		if not x.shape[3]==3: 
+			# print('x.shape[3]: {}'.format(x.shape[3]))
+			return x  # only apply for pure velocity grids with 3 channels
+		# print('editing x')
+		# input('hanging')
 		x2d = np.zeros( (1,x.shape[1],x.shape[2],2), dtype=FDG_DTYPE )
 		x2d[:,:,:,0] = x[:,:,:,0] # only keep x,y
 		x2d[:,:,:,1] = x[:,:,:,1]
@@ -319,21 +331,38 @@ class FluidDataLoader(object):
 			Note, data always has to have shape ZYXc (3d) or YXc (2d), 
 			where c is channels (eg 3 for vels, 1 for scalar data).
 		""" 
-		n = len(self.xfn)
+		# loaded data in this order: vx, vy, vz
+		n = len(self.xfn) 
+		# print('n: {}'.format(n))
 		for t in range(n):
 			fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[0]
 			fx = self.loadSingleDatum(self.xfn[t], self.np_load_string , fof) 
+			fx = self.removeZComponent(fx)
 
 			if self.multi_file_list is not None:
 				# concat multiple files...
 				basename = self.xfn[t]
 				if not basename.find(self.multi_file_list[0])>=0:
 					raise FluidDataLoaderError("Error, input filename '%s' doesnt contain given string '%s'"%(basename,self.multi_file_list[0]))
+				# print(self.multi_file_list[0]) # velocity
+				# input('hanging')
 				for i in range(1,len(self.multi_file_list)):
 					fnr = basename.replace(self.multi_file_list[0] , self.multi_file_list[i])
 					fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[i]
+					# print('fnr: {}, fof: {}'.format(fnr, fof))
+					# input('hanging')
 					_fx = self.loadSingleDatum(fnr, self.np_load_string , fof ) 
+					_fx = self.removeZComponent(_fx)
+					# print('_fx shape: {}'.format(_fx.shape))
+					# input('hanging')
 					fx = np.append( fx, _fx , axis=len(fx.shape)-1 )
+					# print('fx shape: {}'.format(fx.shape))
+					# input('hanging')
+					# print(_fx[0][0][0])
+					# print(_fx.shape)
+			# print('fx: {}'.format(fx.shape)) # 64 x 64 x 9?
+			# input('hanging')
+
 
 			# apply post-processing function (if given)
 			if self.postproc_func is not None:
@@ -343,6 +372,7 @@ class FluidDataLoader(object):
 			if self.have_y_npz:
 				fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[0]
 				fy = self.loadSingleDatum(self.yfn[t], self.np_load_string_y , fofy ) 
+				fy = self.removeZComponent(fy)
 
 				if self.multi_file_list_y is not None:
 					basename = self.yfn[t]
@@ -352,21 +382,28 @@ class FluidDataLoader(object):
 						fnr = basename.replace(self.multi_file_list_y[0] , self.multi_file_list_y[i])
 						fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[i]
 						_fy = self.loadSingleDatum(fnr, self.np_load_string_y , fofy ) 
+						_fy = self.removeZComponent(_fy)
 						fy = np.append( fy, _fy , axis=len(fy.shape)-1 )
-
 				if self.postproc_func_y is not None:
 					fy = self.postproc_func_y(fy, self)
-
-			fx = self.removeZComponent(fx) # optional!
+			# print('fy: {}'.format(fy.shape)) # 64 x 64 x 9?
+			# input('hanging')
+			# print('fx: {}'.format(fx.shape)) # 64 x 64 x 9?
+			# input('hanging')
+			# fx = self.removeZComponent(fx) # optional!
 
 			# intialize x/y arrays upon first use
 			if self.x is None:
 				self.data_shape = fx.shape
 
 				if self.shape is None: # no target shape? use data res
+					# print('no shape') # here
+					# input('hanging')
 					self.shape = fx.shape
 					self.do_zoom = False
 				else:
+					# print('do zoom')
+					# input('hanging')
 					self.do_zoom = True
 					self.zoom_shape = []
 					for i in range(len(self.shape)):
@@ -386,7 +423,7 @@ class FluidDataLoader(object):
 
 			# and again for y ...
 			if self.have_y_npz:
-				fy = self.removeZComponent(fy)
+				# fy = self.removeZComponent(fy)
 
 				if self.y is None:
 					self.data_shape_y = fy.shape
@@ -409,7 +446,8 @@ class FluidDataLoader(object):
 				self.y[t,:]  = fy
 
 			if self.print_info and t==0: print("loadFiles: data size x "+ format(self.x.shape) + ((", y " + format(self.y.shape)) if self.filename_y is not None else "") ) 
-
+		# print('x shape: {}'.format(self.x.shape))
+		# input('hanging')
 		# x (and optionally y) arrays complete now, retrieve with get() later on
 
 
@@ -438,9 +476,15 @@ class FluidDataLoader(object):
 
 		# remove z axis of all 3D data fields for whole data vector
 		if self.collapse_z:
+			# print('collapse_z')
+			# input('hanging')
 			if self.getDim(self.x[0].shape)==2:
+				# print('removing z')
+				# input('hanging')
 				self.x = np.reshape( self.x, [self.x.shape[0], self.shape[1],self.shape[2],self.shape[3]] ) # remove z-axis for x
 			if self.have_y_npz and self.getDim(self.y[0].shape)==2:
+				print('hanging')
+				print('removing z for y')
 				self.y = np.reshape( self.y, [self.y.shape[0], self.shape_y[1],self.shape_y[2],self.shape_y[3]] )
 
 		# do manual shuffling once (needs to reorder x,y and filenames for x,y)
