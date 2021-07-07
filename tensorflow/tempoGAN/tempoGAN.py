@@ -27,6 +27,10 @@ import paramhelpers as ph
 from GAN import GAN, lrelu
 import fluiddataloader as FDL
 
+'''
+
+'''
+
 # ---------------------------------------------
 
 # initialize parameters / command line params
@@ -39,7 +43,7 @@ load_model_no   = int(ph.getParam( "load_model_no",   -1 )) 			# nubmber of the 
 
 simSizeLow  	= int(ph.getParam( "simSize", 		  64 )) 			# tiles of low res sim
 tileSizeLow 	= int(ph.getParam( "tileSize", 		  16 )) 			# size of low res tiles
-dt			= float(ph.getParam( "dt", 		  1.0 )) 				# step time of training data
+dt			= float(ph.getParam( "dt", 		  1./960. )) 				# step time of training data
 #Data and Output
 loadPath		 =	 ph.getParam( "loadPath",		 '../2ddata_sim/' ) 	# path to training data
 fromSim		 = int(ph.getParam( "fromSim",		 1000 )) 			# range of sim data to use, start index
@@ -61,7 +65,7 @@ dropout   		= float(ph.getParam( "dropout",  	  1.0 )) 			# keep prob for all dr
 dropoutOutput   = float(ph.getParam( "dropoutOutput", dropout )) 		# affects testing, full sim output and progressive output during training
 beta			= float(ph.getParam( "adam_beta1",	 0.5 ))			#1. momentum of adam optimizer
 
-weight_dld		= float(ph.getParam( "weight_dld",	1.0)) 			# ? discriminator loss factor ?
+weight_dld		= float(ph.getParam( "weight_dld",	1.0)) 				# ? discriminator loss factor ?
 k				= float(ph.getParam( "lambda",		  1.0)) 			# influence/weight of l1 term on generator loss
 k2				= float(ph.getParam( "lambda2",		  0.0)) 			# influence/weight of d_loss term on generator loss
 k_f				= float(ph.getParam( "lambda_f",		  1.0)) 			# changing factor of k
@@ -100,7 +104,7 @@ numValis		= int(ph.getParam( "numValis", 		  10  )) 			# number of validation ru
 outputInterval	= int(ph.getParam( "outputInterval",  100  ))			# interval in iterations to output statistics
 saveInterval	= int(ph.getParam( "saveInterval",	  200  ))	 		# interval in iterations to save model
 alwaysSave	    = int(ph.getParam( "alwaysSave",	  True  )) 			#
-maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model saves to keep in each test-run
+maxToKeep		= int(ph.getParam( "keepMax",		 200  )) 			# maximum number of model saves to keep in each test-run
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
 note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
 data_fraction	= float(ph.getParam( "data_fraction",		   0.3 ))
@@ -112,17 +116,19 @@ overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifil
 
 # extras
 collapse_z		= int(ph.getParam( "collapse_z",  			  True ))>0		# collapse z
+n_t         	= int(ph.getParam( "n_t",		   1 )) 					# 
+dim_t         	= int(ph.getParam( "dim_t",		   1 )) 					# 
 ph.checkUnusedParams()
 
 useTempoD = False
 useTempoL2 = False
-if(kt > 1e-6):
-	useTempoD = True
-if(kt_l > 1e-6):
-	useTempoL2 = True
-if(kt > 1e-6 and kt_l > 1e-6):
-	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-	exit(1)
+# if(kt > 1e-6):
+# 	useTempoD = True
+# if(kt_l > 1e-6):
+# 	useTempoL2 = True
+# if(kt > 1e-6 and kt_l > 1e-6):
+# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+# 	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -183,20 +189,28 @@ def drawParticles(name):
 	im = Image.new('RGB', (w, h), (0, 0, 0))
 	draw = ImageDraw.Draw(im)
 	for pos in particle_pos:
-		draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-	im.save(test_path + '/' + name+'.jpg', quality=95)
+		draw.ellipse((w * pos[0], h * pos[1], w * pos[0] + 1, h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
 
 
 if outputOnly:
 	# read particles
-	with open('../2ddata_sim/sim_1006/particle_positions.txt') as f:
+	with open('../2ddata_sim/sim_1011/particle_positions.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
-			vel = line.split(' ')
-			print(vel)
-			particle_pos.append(np.array(np.float32([vel[0], vel[1]])))
+			pos = line.split(' ')
+			# print(pos)
+			cur_pos = np.array(np.float32([pos[0], pos[1]]))
+			cur_pos[0], cur_pos[1] = cur_pos[0], cur_pos[1]
+			# cur_pos[0], cur_pos[1] = cur_pos[0], 1. - cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], 1. - cur_pos[1]
+			particle_pos.append(cur_pos)
 			particle_vel.append(np.array([0., 0.]))
-	drawParticles('ori')
+	drawParticles('-1')
 
 dirIDs = np.linspace(fromSim, toSim, (toSim-fromSim+1),dtype='int16')
 
@@ -209,7 +223,7 @@ if (outputOnly):
 	useDataAugmentation = 0
 
 if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim=dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
+	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim=dataDimension, dim_t = dim_t, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
 	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
 else:
 	lowparalen = len(mfl)
@@ -222,23 +236,29 @@ else:
 	mfh= np.append(mfh_tempo, mfh)
 	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
 	moh = np.append(moh, np.ones(highparalen)*2)
+	# trial
+	# mol = np.zeros(lowparalen)
+	# moh = np.zeros(highparalen)
 	print('lowparalen: {}'.format(lowparalen))
 	print('highparalen: {}'.format(highparalen))
-	print('mfl_tempo: {}'.format(mfl_tempo))
+	# print('mfl_tempo: {}'.format(mfl_tempo))
 	print('mfl: {}'.format(mfl))
 	print('mol: {}'.format(mol))
-	print('mfh_tempo: {}'.format(mfh_tempo))
+	# print('mfh_tempo: {}'.format(mfh_tempo))
 	print('mfh: {}'.format(mfh))
 	print('moh: {}'.format(moh))
 	# input('hanging')
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
+	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = dim_t, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
 	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
 
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
-print('inputx size: {}'.format(inputx.shape))
-print('y : {}'.format(y))
+# print('inputx size: {}'.format(inputx.shape))
+# if not outputOnly:
+# 	print('y shape: {}'.format(y.shape))
+# 	print(np.where(y != 0.)[0])
+	# print(y)	
 # input('hanging')
 # print('y size: {}'.format(y.shape))
 # input('pause')
@@ -320,18 +340,21 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3):
 		filter = [filter_size,filter_size,filter_size]
 		filter1 = [1,1,1]
 
-	gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	gc2,_ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
+	gc1, _ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	gc2, _ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
+	
+	# convolutional_layer(self, outChannels, _patchShape, activation_function=tf.nn.tanh, stride=[1], name="conv",reuse=False, batch_norm=False, train=None, in_layer=None):
 
 	# shortcut connection
-	gs1,_ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	gs1, _ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
 	resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
+	print('resnet shape: {}'.format(resUnit1.shape))
 	rbId += 1
 	return resUnit1
 
 def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
-	print("\n\tGenerator (resize-resnett3-deep)")
+	print("\n\t Generator (resize-resnett3-deep)")
 	with tf.variable_scope("generator", reuse=reuse) as scope:
 		if dataDimension == 2:
 			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, 2]) #NHWC
@@ -341,7 +364,8 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 			patchShape = [2,2,2]
 		rbId = 0
 		gan = GAN(_in)
-	
+		
+		# 2d: n_inputChannels = 2
 		gan.max_depool()
 		inp = gan.max_depool()
 		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, 5)
@@ -349,7 +373,7 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, 5)
 		inRu3 = ru2
 		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, 5)
-		ru4 = resBlock(gan, ru3, 2, n_inputChannels,  reuse, False,5)
+		ru4 = resBlock(gan, ru3, 2, n_inputChannels,  reuse, False, 5)
 		# print('ru4: {}'.format(ru4.shape))
 		# print('n_output: {}'.format(n_output))
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
@@ -369,7 +393,7 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 			shape = tf.shape(in_low)
 			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input)])
-			print(in_low)
+			# print(in_low)
 			# print('in_low: {}'.format(in_low.shape))
 			# print('tileSizeLow*tileSizeLow*2: {}'.format(tileSizeLow*tileSizeLow*2))
 			# print('in_high: {}'.format(in_high.shape))
@@ -403,7 +427,7 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 
 		d4,_ = gan.convolutional_layer(256, filter, lrelu, stride=[1], name="d_c4", reuse=reuse, batch_norm=use_batch_norm, train=train) #256
 
-		shape=gan.flatten()
+		shape = gan.flatten()
 		gan.fully_connected_layer(1, None, name="d_l5")
 
 		print("\tDOFs: %d " % gan.getDOFs())
@@ -489,7 +513,7 @@ def disc_test(in_low, in_high, reuse=False, use_batch_norm=False, train=None):
 		# print('in_low: {}'.format(in_low.shape))
 		# print('in_high: {}'.format(in_high.shape))
 		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
-		shape=gan.flatten()
+		shape = gan.flatten()
 		gan.fully_connected_layer(1, None, name="d_l5")
 		if dataDimension == 2:
 			d2 = tf.constant(1., shape = [batch_size, tileSizeLow,tileSizeLow,64])
@@ -504,9 +528,7 @@ def disc_test(in_low, in_high, reuse=False, use_batch_norm=False, train=None):
 
 #change used models for gen and disc here #other models in NNmodels.py
 gen_model = locals()[genModel]
-print('generator done')
 disc_model = locals()[discModel]
-print('discriminator done')
 disc_time_model = disc_binclass_cond_tempo # tempo dis currently fixed
 
 #set up GAN structure
@@ -519,6 +541,11 @@ if not outputOnly: #setup for training
 	if use_spatialdisc:
 		disc, dy1, dy2, dy3, dy4 = disc_model(x_disc, y, use_batch_norm=bn, train=train)
 		gen, gy1, gy2, gy3, gy4 = disc_model(x_disc, gen_part, reuse=True, use_batch_norm=bn, train=train)
+		print('dy1: {}'.format(dy1.shape))
+		print('dy2: {}'.format(dy2.shape))
+		print('dy3: {}'.format(dy3.shape))
+		print('dy4: {}'.format(dy4.shape))
+		# input('hanging')
 	if genValiImg > -1: sampler = gen_part
 else: #setup for generating output with trained model
 	sampler = gen_model(x, use_batch_norm=bn, train=False)
@@ -579,27 +606,32 @@ if not outputOnly:
 	if use_spatialdisc:
 		disc_sigmoid = tf.reduce_mean(tf.nn.sigmoid(disc))
 		gen_sigmoid = tf.reduce_mean(tf.nn.sigmoid(gen))
-		# print('gen sigmoid shape: {}'.format(gen_sigmoid.shape))
-		# exit()
 
-		# loss of the discriminator with real input 
+		# sigmoid_cross_entropy_with_logits = labels * -log(sigmoid(logits)) + (1 - labels) * -log(1 - sigmoid(logits))
+		# loss of the discriminator with real input: -En[log(D_s(x,y))]
 		disc_loss_disc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc, labels=tf.ones_like(disc)))
-		#loss of the discriminator with input from generator
+		# loss of the discriminator with input from generator: -En[log(1-Ds(x,G(x)))]
 		disc_loss_gen = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.zeros_like(gen)))
+
+		# Enj[lambdaj |F(G(x))-F(y)|^2]
 		disc_loss_layer = k2_l1*tf.reduce_mean(tf.nn.l2_loss(dy1 - gy1)) + k2_l2*tf.reduce_mean(tf.nn.l2_loss(dy2 - gy2)) + k2_l3*tf.reduce_mean(tf.nn.l2_loss(dy3 - gy3)) + k2_l4*tf.reduce_mean(tf.nn.l2_loss(dy4 - gy4))
 		disc_loss = disc_loss_disc * weight_dld + disc_loss_gen
-		#loss of the generator
-		gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.ones_like(gen)))
-	
+		# loss of the generator: -En[log(Ds(x,G(x)))]
+		gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.ones_like(gen)))	
+		# print('disc_sigmoid: {}, gen_sigmoid: {}, disc_loss_disc: {}, disc_loss_gen: {}'.format(disc_sigmoid.shape, gen_sigmoid.shape, disc_loss_disc.shape, disc_loss_gen.shape))
+		# print('disc_loss_layer: {}, disc_loss: {}, gen_loss: {}'.format(disc_loss_layer.shape, disc_loss.shape, gen_loss.shape))
+		# input('hanging')
 	else:
 		gen_loss = tf.zeros([1])
 		disc_loss_layer = tf.zeros([1])
 
 	#additional generator losses
 	gen_l2_loss = tf.nn.l2_loss(y - gen_part)
-	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) #use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
+	# En(|G(x)-y|)
+	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) # use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
 
-	#uses sigmoid cross entropy and l1 - see cGAN paper
+	# uses sigmoid cross entropy and l1 - see cGAN paper
+	# -En[log(Ds(x,G(x)))] + kk * En(|G(x)-y|) + kk2 * Enj[lambdaj |F(G(x))-F(y)|^2]
 	gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
 
 	# set up decaying learning rate, if enabled
@@ -618,13 +650,15 @@ if not outputOnly:
 	if use_spatialdisc:
 		dis_update_ops = update_ops[:]
 		d_var = [var for var in vars if "d_" in var.name]
+		# print('dis_update_ops: {}'.format(dis_update_ops))
+		# print('d_var: {}'.format(d_var))
+		# input('hanging')
 
 	if (useTempoD or useTempoL2):# temporal loss here
 		disT_update_ops = []
 		ori_gen_loss_complete = gen_loss_complete
 		# currently, the update_op gathering is not too nice and very sensitive to the operation order. 
 		# TODO: make it flexible!
-		n_t = 3
 		device_str = '/device:GPU:0'
 		if(dataDimension == 3): # have to use a second GPU!
 			device_str = '/device:GPU:1'
@@ -716,7 +750,7 @@ if not outputOnly:
 				ori_gen_optimizer = tf.train.AdamOptimizer(learning_rate, beta1=beta).minimize(ori_gen_loss_complete, var_list=g_var)
 	if use_spatialdisc:
 		with tf.control_dependencies(dis_update_ops):
-			#optimizer for discriminator, uses combined loss, can only change variables of the disriminator
+			# optimizer for discriminator, uses combined loss, can only change variables of the disriminator
 			disc_optimizer_adam = tf.train.AdamOptimizer(learning_rate, beta1=beta)
 			disc_optimizer = disc_optimizer_adam.minimize(disc_loss, var_list=d_var)
 
@@ -832,7 +866,7 @@ def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, us
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
 
-def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, useVelocities = False, useVorticities = False, n_t = 3, dt=1.0, adv_flag = 1.0):
+def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, useVelocities = False, useVorticities = False, n_t = n_t, dt=dt, adv_flag = 0.):
 	batch_xts, batch_yts, batch_y_pos = tiCr.selectRandomTempoTiles(batch_size, isTraining, useDataAugmentation, n_t, dt, adv_flag)
 	if useVelocities and useVorticities:
 		real_batch_sz = batch_xts.shape[0]
@@ -923,8 +957,23 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 
 	dx = 1./simSizeHigh
 	inv_dx = simSizeHigh
+
+	max_grid_v = -100
+	for gridi in range(256):
+		for gridj in range(256):
+			grid_vel = grid[gridi][gridj]
+			cell_vel = np.array([grid_vel[0], grid_vel[1]], dtype=np.float32)
+			cell_vel_norm = np.linalg.norm(cell_vel)
+			if cell_vel_norm > max_grid_v:
+				max_grid_v = cell_vel_norm
+				print(cell_vel)
+	print('max vel: {}'.format(max_grid_v))
+
+	max_norm = -1.
 	for idx, pos in enumerate(particle_pos):
 		pos2d = np.array([pos[0], pos[1]])
+		# print('##########################################')
+		# print('pos2d: {}'.format(pos2d))
 
 		# dx = 1/256
 		# print(pos2d) # checked correct
@@ -933,6 +982,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 
 		number_of_ghost_cells_plus_one = 1
 		closest_cell=np.int16(pos2d * inv_dx+number_of_ghost_cells_plus_one)
+		# print('closest cell: {}'.format(closest_cell))
 		closest_cell_position = (np.float32(closest_cell) - np.array([1., 1.])) * dx + .5 * np.array([dx, dx])
 		X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
 		w = np.array([	[0., 0.],
@@ -945,19 +995,29 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 			w[1][axis] = abs(-x*x+.75)
 			x -= 1
 			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
+		# print('##########################################')
+
 		vel = np.array([0., 0.], dtype=np.float32)
+		sum_weight = 0.
+		
 		for i in range(3):
 			for j in range(3):
 				weight = w[i][0] * w[j][1]
+				sum_weight += weight
 				cur_cell = closest_cell + np.array([i, j])
 				ci, cj = cur_cell[0], cur_cell[1]
 				grid_vel = grid[ci][cj]
 				cell_vel = np.array([grid_vel[0], grid_vel[1]], dtype=np.float32)
-				print('grid_vel: {}'.format(grid_vel))
+				# print('cell_vel: {}'.format(cell_vel))
 				vel += cell_vel*weight
+		# print('sum_weight: {}'.format(sum_weight))
+		vel_norm = np.linalg.norm(vel)
+		if vel_norm > max_norm:
+			max_norm = vel_norm
 		particle_vel[idx] = np.array([vel[0], vel[1]])
 
-
+	print('max norm: {}'.format(max_norm))
+ 
     # // P2G
     # for (int i = 0; i < 3; i++) {
     #   for (int j = 0; j < 3; j++) {
@@ -1248,18 +1308,35 @@ if not outputOnly and trainGAN:
 			# discriminator variables; with real and generated input
 			if use_spatialdisc:
 				for runs in range(discRuns):
-					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
-					# print('batch_xs size: {}'.format(batch_xs.shape))
-					# print('batch_ys size: {}'.format(batch_ys.shape))
-					# print('metadata: {}'.format(run_metadata))
-					# print('batch_xs: {}'.format(batch_xs.shape))
-					# print('batch_ys: {}'.format(batch_ys.shape))
-					# print('dropout: {}'.format(dropout))
+					# print('batch_size_disc: {}'.format(batch_size_disc)) # 16
 					# input('hanging')
-					_, disc_cost, summary,disc_sig,gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc,disc_sigmoid,gen_sigmoid], 
+					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
+					# print('training disc')
+					# print('batch_xs size: {}'.format(batch_xs.shape))
+					# cnt = 0
+					# for indexi in range(batch_xs.shape[0]):
+					# 	for indexj in range(batch_xs.shape[1]):
+					# 		cnt += 1
+					# 		if batch_xs[indexi][indexj] != 0.:
+					# 			print('batch x {},{}: {}'.format(indexi, indexj, batch_xs[indexi][indexj]))
+					# print(cnt) # 64x64x2x16
+					# print('batch_ys size: {}'.format(batch_ys.shape))
+					# cnt = 0
+					# for indexi in range(batch_ys.shape[0]):
+					# 	for indexj in range(batch_ys.shape[1]):
+					# 		cnt += 1
+					# 		if batch_ys[indexi][indexj] != 0.:
+					# 			print('batch y {},{}: {}'.format(indexi, indexj, batch_ys[indexi][indexj]))
+					# print(cnt) # 64x64x2x16
+					# input('hanging')
+					_, disc_cost, summary, disc_sig, gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc, disc_sigmoid, gen_sigmoid], 
 																	feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}, 
 																	options=run_options, run_metadata=run_metadata )
-					# print('session finished')
+					# print('disc_optimizer: {}'.format(disc_optimizer))
+					# print("disc_loss shape: {}".format(disc_loss.shape))
+					# print("disc_loss: {}".format(disc_loss))
+					# print("disc_cost: {}".format(disc_cost))
+					# input('hanging')
 					avgCost_disc += disc_cost
 					summary_writer.add_summary(summary, iteration)
 					if saveMD: summary_writer.add_run_metadata(run_metadata, 'dstep%d' % iteration)
@@ -1267,7 +1344,7 @@ if not outputOnly and trainGAN:
 			# temporal discriminator
 			if(useTempoD):
 				for runs in range(discRuns):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = n_t, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
 					dict_train = {x_t:batch_xts, y_t:batch_yts, keep_prob: dropout, train: True}
 					if(ADV_flag): dict_train[y_pos] = batch_y_pos
 					_, t_disc_cost, summary, t_disc_sig, t_gen_sig = sess.run(
@@ -1289,7 +1366,7 @@ if not outputOnly and trainGAN:
 				else:
 					getlist = [gen_optimizer, gen_l1_loss, gen_l2_loss]
 				if(useTempoD or useTempoL2):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = n_t, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
 					train_dict[x_t] = batch_xts
 					if(ADV_flag):
 						train_dict[y_pos] = batch_y_pos
@@ -1373,7 +1450,7 @@ if not outputOnly and trainGAN:
 				
 				if(useTempoD): # temporal logs
 					# T disc output with training data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, useVelocities = useVelocities, useVorticities = useVorticities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, useVelocities = useVelocities, useVorticities = useVorticities, n_t = n_t, dt=dt, adv_flag = ADV_flag)
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
 						vali_dict[y_pos] = batch_y_pos
@@ -1386,7 +1463,7 @@ if not outputOnly and trainGAN:
 					avgOut_gen_t += t_gen_out
 
 					# validation data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, useVelocities = useVelocities, useVorticities = useVorticities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, useVelocities = useVelocities, useVorticities = useVorticities, n_t = n_t, dt=dt, adv_flag = ADV_flag)
 					# disc with real input
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
