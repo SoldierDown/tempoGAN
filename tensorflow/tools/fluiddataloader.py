@@ -357,13 +357,13 @@ class FluidDataLoader(object):
 			# ... and the same again for y
 			if self.have_y_npz:
 				fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[0]
-				print('multi_file_idxOff_y: {}'.format(self.multi_file_idxOff_y))
-				print('yfn: {}'.format(self.yfn))
-				print('fofy: {}'.format(fofy))
+				# print('multi_file_idxOff_y: {}'.format(self.multi_file_idxOff_y))
+				# print('yfn: {}'.format(self.yfn))
+				# print('fofy: {}'.format(fofy))
 				fy = self.loadSingleDatum(self.yfn[t], self.np_load_string_y , fofy ) 
-				print("361: shape fy: {}".format(fy.shape))
-				print(fy[np.nonzero(fy>0.01)])
-				print(len(fy[np.nonzero(fy>0.01)]))
+				# print("361: shape fy: {}".format(fy.shape))
+				# print(fy[np.nonzero(fy>0.01)])
+				# print(len(fy[np.nonzero(fy>0.01)]))
 				# input('hanging')
 				if self.multi_file_list_y is not None:
 					basename = self.yfn[t]
@@ -408,7 +408,7 @@ class FluidDataLoader(object):
 				# fy not change after removeZComponent
 
 				if self.y is None:
-					print('none y')
+					# print('none y')
 					self.data_shape_y = fy.shape
 					if self.shape_y is None: # no target shape? use data res
 						# print('none shape y') # here
@@ -424,20 +424,20 @@ class FluidDataLoader(object):
 
 					if self.print_info: print("Allocating y data for "+format(n)+" entries of size "+format(self.shape_y) )
 					self.y = np.zeros( tuple([n]+list(self.shape_y)) , dtype=FDG_DTYPE )
-				print("420: shape fy: {}".format(fy.shape))
-				print(fy[np.nonzero(fy>0.01)])
-				print(len(fy[np.nonzero(fy>0.01)]))
+				# print("420: shape fy: {}".format(fy.shape))
+				# print(fy[np.nonzero(fy>0.01)])
+				# print(len(fy[np.nonzero(fy>0.01)]))
 				# input('hanging')
 				if self.do_zoom:
 					print('do zoom')
 					fy = scipy.ndimage.zoom( fy, self.zoom_shape_y, order=1 ) 
 
 				self.y[t,:]  = fy
-				print("428: shape self.y: {}".format(self.y.shape))
-				print(self.y[np.nonzero(self.y>0.01)])
-				print(len(self.y[np.nonzero(self.y>0.01)]))
-				print(self.y[np.nonzero(self.y<=0.01)])
-				print(len(self.y[np.nonzero(self.y<=0.01)]))
+				# print("428: shape self.y: {}".format(self.y.shape))
+				# print(self.y[np.nonzero(self.y>0.01)])
+				# print(len(self.y[np.nonzero(self.y>0.01)]))
+				# print(self.y[np.nonzero(self.y<=0.01)])
+				# print(len(self.y[np.nonzero(self.y<=0.01)]))
 				# input('hanging')
 			if self.print_info and t==0: print("loadFiles: data size x "+ format(self.x.shape) + ((", y " + format(self.y.shape)) if self.filename_y is not None else "") ) 
 		# x (and optionally y) arrays complete now, retrieve with get() later on
