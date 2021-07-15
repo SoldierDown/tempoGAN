@@ -215,10 +215,8 @@ class FluidDataLoader(object):
 						self.y = []
 					self.y.append( self.array_y[list_index] )
 					labelstr = " with label " + format( self.array_y[list_index] )
-
 				if self.func_y is not None:
 					print("NYI! test...")
-
 		else:
 			# "simple" index range 
 			n  = max(1, int((self.filename_index_max-self.filename_index_min)*self.data_fraction))
@@ -246,7 +244,11 @@ class FluidDataLoader(object):
 					if self.y is None:
 						self.y = []
 					self.y.append( self.func_y(list_index, sim_index, t, fn) )
-
+		if self.y is not None:
+			print("247: shape self.y: {}".format(self.y.shape))
+			print(self.y[np.nonzero(self.y>0.01)])
+			print(len(self.y[np.nonzero(self.y>0.01)]))
+			# input('hanging')
 		if self.print_info:
 			print("Found " +format(foundCnt) +" files from sim ID "+format(sim_index) + labelstr )
 
@@ -268,9 +270,18 @@ class FluidDataLoader(object):
 	def removeZComponent(self,x):
 		""" Optional, and 2D only: remove Z entry from 3d vec fields
 		"""
-		if not self.collapse_z: return x
-		if not self.getDim( x.shape )==2: return x
-		if not x.shape[3]==3: return x  # only apply for pure velocity grids with 3 channels
+		if not self.collapse_z: 
+			# print('not collapse_z')
+			# input('hanging')
+			return x
+		if not self.getDim( x.shape )==2: 
+			# print('not getDim == 2')
+			# input('hanging')
+			return x
+		if not x.shape[3]==3: 
+			# print('shape[3] == 3')
+			# input('hanging')
+			return x  # only apply for pure velocity grids with 3 channels
 		x2d = np.zeros( (1,x.shape[1],x.shape[2],2), dtype=FDG_DTYPE )
 		x2d[:,:,:,0] = x[:,:,:,0] # only keep x,y
 		x2d[:,:,:,1] = x[:,:,:,1]
@@ -315,6 +326,7 @@ class FluidDataLoader(object):
 		return ar
 
 	def loadFiles(self):
+		print('loading files')
 		""" Load all NPZs from list.
 			Note, data always has to have shape ZYXc (3d) or YXc (2d), 
 			where c is channels (eg 3 for vels, 1 for scalar data).
@@ -333,7 +345,10 @@ class FluidDataLoader(object):
 					fnr = basename.replace(self.multi_file_list[0] , self.multi_file_list[i])
 					fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[i]
 					_fx = self.loadSingleDatum(fnr, self.np_load_string , fof ) 
+					# print('_fx shape: {}'.format(_fx.shape))
 					fx = np.append( fx, _fx , axis=len(fx.shape)-1 )
+					# print('fx shape: {}'.format(fx.shape))
+					# input('hanging')
 
 			# apply post-processing function (if given)
 			if self.postproc_func is not None:
@@ -342,8 +357,14 @@ class FluidDataLoader(object):
 			# ... and the same again for y
 			if self.have_y_npz:
 				fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[0]
+				print('multi_file_idxOff_y: {}'.format(self.multi_file_idxOff_y))
+				print('yfn: {}'.format(self.yfn))
+				print('fofy: {}'.format(fofy))
 				fy = self.loadSingleDatum(self.yfn[t], self.np_load_string_y , fofy ) 
-
+				print("361: shape fy: {}".format(fy.shape))
+				print(fy[np.nonzero(fy>0.01)])
+				print(len(fy[np.nonzero(fy>0.01)]))
+				# input('hanging')
 				if self.multi_file_list_y is not None:
 					basename = self.yfn[t]
 					if not basename.find(self.multi_file_list_y[0])>=0:
@@ -356,7 +377,6 @@ class FluidDataLoader(object):
 
 				if self.postproc_func_y is not None:
 					fy = self.postproc_func_y(fy, self)
-
 			fx = self.removeZComponent(fx) # optional!
 
 			# intialize x/y arrays upon first use
@@ -376,21 +396,22 @@ class FluidDataLoader(object):
 
 				if self.print_info: print("Allocating x data for "+format(n)+" entries of size "+format(self.shape) )
 				self.x = np.zeros( tuple([n]+list(self.shape)) , dtype=FDG_DTYPE )
-
 			# optional zoom, is initialized with original array
 			if self.do_zoom:
 				fx = scipy.ndimage.zoom( fx, self.zoom_shape, order=1 ) 
 
 			# finally store t-th data sample
 			self.x[t,:]  = fx
-
 			# and again for y ...
 			if self.have_y_npz:
 				fy = self.removeZComponent(fy)
+				# fy not change after removeZComponent
 
 				if self.y is None:
+					print('none y')
 					self.data_shape_y = fy.shape
 					if self.shape_y is None: # no target shape? use data res
+						# print('none shape y') # here
 						self.shape_y = fy.shape
 						self.do_zoom = False
 					else:
@@ -398,23 +419,33 @@ class FluidDataLoader(object):
 						self.zoom_shape_y = []
 						for i in range(len(self.shape_y)):
 							self.zoom_shape_y.append( float(self.shape_y[i]) / self.data_shape_y[i] )
-						if self.print_info: print("Zoom for y by "+format(self.zoom_shape_y) )
+						if self.print_info: 
+							print("Zoom for y by "+format(self.zoom_shape_y) )
 
 					if self.print_info: print("Allocating y data for "+format(n)+" entries of size "+format(self.shape_y) )
 					self.y = np.zeros( tuple([n]+list(self.shape_y)) , dtype=FDG_DTYPE )
-
+				print("420: shape fy: {}".format(fy.shape))
+				print(fy[np.nonzero(fy>0.01)])
+				print(len(fy[np.nonzero(fy>0.01)]))
+				# input('hanging')
 				if self.do_zoom:
+					print('do zoom')
 					fy = scipy.ndimage.zoom( fy, self.zoom_shape_y, order=1 ) 
 
 				self.y[t,:]  = fy
-
+				print("428: shape self.y: {}".format(self.y.shape))
+				print(self.y[np.nonzero(self.y>0.01)])
+				print(len(self.y[np.nonzero(self.y>0.01)]))
+				print(self.y[np.nonzero(self.y<=0.01)])
+				print(len(self.y[np.nonzero(self.y<=0.01)]))
+				# input('hanging')
 			if self.print_info and t==0: print("loadFiles: data size x "+ format(self.x.shape) + ((", y " + format(self.y.shape)) if self.filename_y is not None else "") ) 
-
 		# x (and optionally y) arrays complete now, retrieve with get() later on
 
 
 
 	def loadDirs(self):
+		print('loading dirs')
 		""" Main load function: collect all files in multiple directories,
 			and load the necessary fraction; potentially rescale (zoom) data, if enabled
 		"""
@@ -442,20 +473,34 @@ class FluidDataLoader(object):
 				self.x = np.reshape( self.x, [self.x.shape[0], self.shape[1],self.shape[2],self.shape[3]] ) # remove z-axis for x
 			if self.have_y_npz and self.getDim(self.y[0].shape)==2:
 				self.y = np.reshape( self.y, [self.y.shape[0], self.shape_y[1],self.shape_y[2],self.shape_y[3]] )
-
+		# print("482: shape self.y: {}".format(self.y.shape))
+		# print(self.y[np.nonzero(self.y>0.01)])
+		# print(len(self.y[np.nonzero(self.y>0.01)]))
+		# input('hanging')
 		# do manual shuffling once (needs to reorder x,y and filenames for x,y)
 		if self.shuffle_on_load:
 			idxr = np.random.permutation(self.x.shape[0])
 			self.x = self.x[idxr]
-			if self.have_y_npz: self.y = self.y[idxr] # y is np array , reorder...
-
+			if self.have_y_npz:
+				self.y = self.y[idxr] # y is np array , reorder...
+			print("490: shape self.y: {}".format(self.y.shape))
+			print(self.y[np.nonzero(self.y>0.01)])
+			print(len(self.y[np.nonzero(self.y>0.01)]))
+			# input('hanging')
 			xfn2,yfn2,y2 = [],[],[]
 			for i in range(len(self.xfn)):
 				xfn2.append( self.xfn[idxr[i]] )
-				if not self.have_y_npz and self.y is not None: y2.append( self.y[idxr[i]] ) # non np array y
-				if self.filename_y is not None: yfn2.append( self.yfn[idxr[i]] )
+				if not self.have_y_npz and self.y is not None:
+					y2.append( self.y[idxr[i]] ) # non np array y
+				if self.filename_y is not None:
+					yfn2.append( self.yfn[idxr[i]] )
 			self.xfn, self.yfn = xfn2,yfn2
-			if not self.have_y_npz and self.y is not None: self.y = y2
+			if not self.have_y_npz and self.y is not None: 
+				self.y = y2
+			print("506: shape self.y: {}".format(self.y.shape))
+			print(self.y[np.nonzero(self.y>0.01)])
+			print(len(self.y[np.nonzero(self.y>0.01)]))
+			# input('hanging')
 		# loading done
 
 
@@ -478,15 +523,15 @@ class FluidDataLoader(object):
 			print("\tData shape x " + format(self.x.shape))
 			m,s = self.arrayStats(self.x)
 			print("\tx mean & var: " + format([m,s]))
-			if m<1e-10 and s<1e-10: # sanity check, any non-zero values?
-				raise FluidDataLoaderError("FluidDataLoader error: aborting, input data x is all zero")
+			# if m<1e-10 and s<1e-10: # sanity check, any non-zero values?
+			# 	raise FluidDataLoaderError("FluidDataLoader error: aborting, input data x is all zero")
 			self.perChannelStats(self.x, "\tPer channel mean & var for x: ")
 			if self.have_y_npz: 
 				print("\tData shape y " + format(self.y.shape))
 				m,s = self.arrayStats(self.y)
 				print("\tmean & var for y: " + format([m,s]))
-				if m<1e-10 and s<1e-10: # sanity check, any non-zero values?
-					raise FluidDataLoaderError("FluidDataLoader error: aborting, input data y is all zero")
+				# if m<1e-10 and s<1e-10: # sanity check, any non-zero values?
+				# 	raise FluidDataLoaderError("FluidDataLoader error: aborting, input data y is all zero")
 
 	def get(self):
 		""" After loading, return arrays 

@@ -129,7 +129,6 @@ class TileCreator(object):
 		self.c_lists = {}
 		self.c_low, self.c_lists[DATA_KEY_LOW] = self.parseChannels(channelLayout_low)
 		self.c_high, self.c_lists[DATA_KEY_HIGH] = self.parseChannels(channelLayout_high)
-
 		# print info
 		print('\n')
 		print('Dimension: {}, time dimension: {}'.format(self.dim,self.dim_t))
@@ -1021,7 +1020,7 @@ def savePngsBatch(low,high, TC, path, batchCounter=-1, save_vels=False, dscale=1
 
 
 # simpler function to output multiple tiles into grayscale pngs
-def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1]):
+def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
 	'''
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
@@ -1031,6 +1030,52 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 		print('ERROR: number of tiles does not match tiles per image')
 		return
 	tiles = np.asarray(tiles)
+	print('tiles: {}'.format(tiles.shape))
+	mean_v = 0.
+	pos_mean_v = 0.
+	cnt = 0
+	pos_cnt = 0
+	min_v = 10000.
+	max_v = -10000.
+	for id in range(tiles.shape[0]):
+		for row in range(tiles.shape[1]):
+			for col in range(tiles.shape[2]):
+				vel = tiles[id][row][col]
+				if vel > 2.:
+					pos_mean_v += vel
+					pos_cnt += 1
+				mean_v += vel
+				if vel > max_v:
+					max_v = vel
+				if vel < min_v:
+					min_v = vel
+				cnt += 1
+	if cnt == 0:
+		cnt = 1
+	if pos_cnt == 0:
+		pos_cnt = 1
+	mean_v = mean_v / cnt
+	pos_mean_v = pos_mean_v / pos_cnt
+	ss = 0.
+	pos_ss = 0.
+	for id in range(tiles.shape[0]):
+		for row in range(tiles.shape[1]):
+			for col in range(tiles.shape[2]):
+				vel = tiles[id][row][col]
+				ss += (vel - mean_v)**2
+				if vel > 2.: 
+					pos_ss += (vel - pos_mean_v)**2
+	if cnt == 1:
+		cnt = 2
+	if pos_cnt == 1:
+		pos_cnt = 2
+	ss /= (cnt - 1)
+	pos_ss /= (pos_cnt - 1)
+	print('############################')
+	print('min_v: {}, max_v: {}'.format(min_v, max_v))
+	print('mean_v: {}, s2: {}'.format(mean_v, ss))
+	print('pos_mean_v: {}, pos_s2: {}'.format(pos_mean_v, pos_ss))
+	print('############################')
 	noImages = len(tiles)//tilesInImage
 	if save_gif:
 		gif=[]
@@ -1047,11 +1092,14 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 		if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
 			if plot_vel_x_y: saveVel(img, path, imageCounter+image)
 			if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
+		# print('img_c shape: {}'.format(img_c.shape))
+		# print('imageCounter: {}, noImages: {}, image: {}'.format(imageCounter, noImages, image))
+		# input('hanging')
 		if len(channels) == 1:
-			scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+			scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
 		else:
 			for i in channels:
-				scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
+				scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + extra + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
 
 	
 # store velocity as quiver plot

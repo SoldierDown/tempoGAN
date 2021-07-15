@@ -29,19 +29,33 @@ def RU_read_content(bytestream, header):
 	assert (header['bytesPerElement'] == 12 and header['elementType'] == 2) or (header['bytesPerElement'] == 4 and (header['elementType'] == 0 or header['elementType'] == 1))
 
 	if (header['elementType'] == 0):
+		# print('int grid')
 		data = np.frombuffer(bytestream.read(), dtype="int32") # int grid
 	else:
+		# print('float grid')
 		data = np.frombuffer(bytestream.read(), dtype="float32") # float grid , scalar or vec3
 	
 	channels = 1
 	if (header['elementType'] == 2):
 		channels = 3
+	# print('channels: {}'.format(channels))
 
 	dimensions = [header['dimT'], header['dimZ'], header['dimY'], header['dimX'], channels]
 	if header['dimT']<=1:
 		dimensions = [header['dimZ'], header['dimY'], header['dimX'], channels]
-
-	return data.reshape( *dimensions, order='C')
+	
+	data = data.reshape( *dimensions, order='C')
+	# test here
+	# data = -5. * np.ones(dimensions)
+	# for val in data:
+	# 	print(val)
+	tmp_pos = data[np.nonzero(data >= 0.)]
+	tmp_neg = data[np.nonzero(data < 0.)]
+	tmp_in = tmp_neg[np.nonzero(tmp_neg<-4.5)]
+	print('tmp_in: {}'.format(tmp_in))
+	print(len(tmp_in))
+	return data
+	# return data.reshape( *dimensions, order='C')
 
 # read uni file header (v3)
 def RU_read_header(bytestream):

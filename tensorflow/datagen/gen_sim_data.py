@@ -22,7 +22,7 @@ import paramhelpers as ph
 
 # Main params  ----------------------------------------------------------------------#
 steps    = 200
-simNo    = 1001  # start ID
+simNo    = 1000  # start ID
 showGui  = 1
 basePath = '../data/'
 npSeedstr   = "-1"
@@ -449,17 +449,24 @@ while t < steps + timeOffset:
 			np.savez_compressed( simPath + 'velocity_high_%04d.npz' % (tf), xl_arV )
 		if saveuni:
 			print("Writing UNIs for frame %d"%tf)
+
+			# density.multConst(100.)
 			density.save(simPath + 'density_low_%04d.uni' % (tf))
+			# density.multConst(0.01)
+
 			vel.save(    simPath + 'velocity_low_%04d.uni' % (tf))
 			#computeVorticity(vel = vel,vorticity = vorticityTmp,norm = norm) #vorticity
 			#vorticityTmp.save(simPath + 'vorticity_low_%04d.uni' % (tf))
+			
+			# xl_density.multConst(100.)
 			xl_density.save(simPath + 'density_high_%04d.uni' % (tf))
+			# xl_density.multConst(0.01)
+			
 			xl_vel.save(    simPath + 'velocity_high_%04d.uni' % (tf)) 
 		if(saveppm):
 			print("Writing ppms for frame %d"%tf)
 			projectPpmFull( xl_density, simPath + 'density_high_%04d.ppm' % (tf), 0, 1.0 )
 			#projectPpmFull( density, simPath + 'density_low_%04d.ppm' % (tf), 0, 5.0 )
-
 	sm.step()
 	xl.step()
 	#gui.screenshot( 'out_%04d.jpg' % t ) 

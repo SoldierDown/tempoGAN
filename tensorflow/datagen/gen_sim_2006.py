@@ -15,13 +15,13 @@ simPath = '../2ddata_sim/'
 simPath,simId = ph.getNextSimPath(simId, simPath)
 # how much to reduce target sim size
 targetFac = 0.25
-savenpz = 1
+savenpz = 0
 saveuni = 1
 
 # source solver params
 dim = 2
 #res = 128
-res = 512
+res = 256
 gs  = vec3(res,int(1.0*res),res)
 if (dim==2): gs.z = 1  # 2D
 

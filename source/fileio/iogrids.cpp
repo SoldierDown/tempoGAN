@@ -391,12 +391,12 @@ void writeGridUni(const string& name, Grid<T>* grid) {
 	// "misuse" temp grid as storage for floating point values (we have double, so it will always fit)
 	gridConvertWrite( gzf, *grid, &(temp[0]), head);
 #	else
+	
 	void* ptr = &((*grid)[0]);
 	gzwrite(gzf, &head, sizeof(UniHeader));
 	gzwrite(gzf, ptr, sizeof(T)*head.dimX*head.dimY*head.dimZ);
 #	endif
 	gzclose(gzf);
-
 #	else
 	debMsg( "file format not supported without zlib" ,1);
 #	endif

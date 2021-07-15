@@ -27,10 +27,33 @@ import paramhelpers as ph
 from GAN import GAN, lrelu
 import fluiddataloader as FDL
 
+import matplotlib.pyplot as plt
+models = []
+costs = []
 # ---------------------------------------------
 
+def getchar():
+	# Returns a single character from standard input
+	import os
+	ch = ''
+	if os.name == 'nt': # how it works on windows
+		import msvcrt
+		ch = msvcrt.getch()
+	else:
+		import tty, termios, sys
+		fd = sys.stdin.fileno()
+		old_settings = termios.tcgetattr(fd)
+		try:
+			tty.setraw(sys.stdin.fileno())
+			ch = sys.stdin.read(1)
+		finally:
+			termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+	if ord(ch) == 3: quit() # handle ctrl+C
+	return ch
+
+
 # initialize parameters / command line params
-outputOnly	  = int(ph.getParam( "out",			 False ))>0 		# output/generation mode, main mode switch
+outputOnly	  = int(ph.getParam( "out",			 False ))>0 			# output/generation mode, main mode switch
 
 basePath		=	 ph.getParam( "basePath",		'../2ddata_gan/' )
 randSeed		= int(ph.getParam( "randSeed",		1 )) 				# seed for np and tf initialization
@@ -39,7 +62,7 @@ load_model_no   = int(ph.getParam( "load_model_no",   -1 )) 			# nubmber of the 
 
 simSizeLow  	= int(ph.getParam( "simSize", 		  64 )) 			# tiles of low res sim
 tileSizeLow 	= int(ph.getParam( "tileSize", 		  16 )) 			# size of low res tiles
-dt			= float(ph.getParam( "dt", 		  1.0 )) 				# step time of training data
+dt			= float(ph.getParam( "dt", 		  1.0 )) 					# step time of training data
 #Data and Output
 loadPath		 =	 ph.getParam( "loadPath",		 '../2ddata_sim/' ) 	# path to training data
 fromSim		 = int(ph.getParam( "fromSim",		 1000 )) 			# range of sim data to use, start index
@@ -70,27 +93,27 @@ k2_l1		   = float(ph.getParam( "lambda2_l1",		   1.0))						 # influence/weight 
 k2_l2		   = float(ph.getParam( "lambda2_l2",		   1.0))						 # influence/weight of L2 layer term on discriminator loss
 k2_l3		   = float(ph.getParam( "lambda2_l3",		   1.0))						 # influence/weight of L3 layer term on discriminator loss
 k2_l4		   = float(ph.getParam( "lambda2_l4",		   1.0))						 # influence/weight of L4 layer term on discriminator loss
-kt			  = float(ph.getParam("lambda_t", 1.0))				    # tempo discriminator loss; 1.0 is good, 0.0 will disable
-kt_l		  = float(ph.getParam("lambda_t_l2", 0.0))				# l2 tempo loss (as naive alternative to discriminator); 1.0 is good, 0.0 will disable
-batch_size	  = int(ph.getParam( "batchSize",  	  128 ))			# batch size for pretrainig and output, default for batchSizeDisc and batchSizeGen
+kt			  = float(ph.getParam("lambda_t", 1.0))				    	# tempo discriminator loss; 1.0 is good, 0.0 will disable
+kt_l		  = float(ph.getParam("lambda_t_l2", 0.0))					# l2 tempo loss (as naive alternative to discriminator); 1.0 is good, 0.0 will disable
+batch_size	  = int(ph.getParam( "batchSize",  	  128 ))				# batch size for pretrainig and output, default for batchSizeDisc and batchSizeGen
 batch_size_disc = int(ph.getParam( "batchSizeDisc",   batch_size )) 	# batch size for disc runs when training gan
-batch_size_gen  = int(ph.getParam( "batchSizeGen",	batch_size )) 	# batch size for gen runs when training gan
+batch_size_gen  = int(ph.getParam( "batchSizeGen",	batch_size )) 		# batch size for gen runs when training gan
 trainGAN		= int(ph.getParam( "trainGAN",   	  True ))>0 		# GAN trainng can be switched off to use pretrainig only
-trainingIters  = int(ph.getParam( "trainingIters",  100000 )) 		# for GAN training
+trainingIters  = int(ph.getParam( "trainingIters",  100000 )) 			# for GAN training
 discRuns 		= int(ph.getParam( "discRuns",  	  1 )) 				# number of discrimiinator optimizer runs per iteration
 genRuns  		= int(ph.getParam( "genRuns",  		  1 )) 				# number or generator optimizer runs per iteration
 batch_norm		= int(ph.getParam( "batchNorm",	   True ))>0			# apply batch normalization to conv and deconv layers
-bn_decay		= float(ph.getParam( "bnDecay",	   0.999 ))			# decay of batch norm EMA
-use_spatialdisc = int(ph.getParam( "use_spatialdisc",		   True )) #use spatial discriminator or not
+bn_decay		= float(ph.getParam( "bnDecay",	   0.999 ))				# decay of batch norm EMA
+use_spatialdisc = int(ph.getParam( "use_spatialdisc",		   True )) 	# use spatial discriminator or not
 
 useVelocities   = int(ph.getParam( "useVelocities",   0  )) 			# use velocities or not
 useVorticities  = int(ph.getParam( "useVorticities",   0  )) 			# use vorticities or not
 premadeTiles	= int(ph.getParam( "premadeTiles",   0  ))		 		# use pre-made tiles?
 
-useDataAugmentation = int(ph.getParam( "dataAugmentation", 0 ))		 # use dataAugmentation or not
-minScale = float(ph.getParam( "minScale",	  0.85 ))				 # augmentation params...
+useDataAugmentation = int(ph.getParam( "dataAugmentation", 0 ))		 	# use dataAugmentation or not
+minScale = float(ph.getParam( "minScale",	  0.85 ))				 	# augmentation params...
 maxScale = float(ph.getParam( "maxScale",	  1.15 ))
-rot	     = int(ph.getParam( "rot",		  2	 ))		#rot: 1: 90 degree rotations; 2: full rotation; else: nop rotation 
+rot	     = int(ph.getParam( "rot",		  2	 ))							#rot: 1: 90 degree rotations; 2: full rotation; else: nop rotation 
 flip	 =   int(ph.getParam( "flip",		  1	 ))
 
 #Test and Save
@@ -100,9 +123,9 @@ numValis		= int(ph.getParam( "numValis", 		  10  )) 			# number of validation ru
 outputInterval	= int(ph.getParam( "outputInterval",  100  ))			# interval in iterations to output statistics
 saveInterval	= int(ph.getParam( "saveInterval",	  200  ))	 		# interval in iterations to save model
 alwaysSave	    = int(ph.getParam( "alwaysSave",	  True  )) 			#
-maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model saves to keep in each test-run
+maxToKeep		= int(ph.getParam( "keepMax",		 10  )) 			# maximum number of model saves to keep in each test-run
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
-note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
+note			= ph.getParam( "note",		   "" )						# optional info about the current test run, printed in log and overview
 data_fraction	= float(ph.getParam( "data_fraction",		   0.3 ))
 frameMax		= int(ph.getParam( "frameMax",		   200 ))
 frameMin		= int(ph.getParam( "frameMin",		   0 ))
@@ -110,17 +133,21 @@ ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or 
 saveMD          = int(ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
 overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifile output, overlap of voxels
 
+# extras 
+collapse_z		= int(ph.getParam( "collapse_z",		   	False )) 
+vis_threshold	= float(ph.getParam( "visThreshold",		50000 ))
+
 ph.checkUnusedParams()
 
 useTempoD = False
 useTempoL2 = False
-if(kt > 1e-6):
-	useTempoD = True
-if(kt_l > 1e-6):
-	useTempoL2 = True
-if(kt > 1e-6 and kt_l > 1e-6):
-	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-	exit(1)
+# if(kt > 1e-6):
+# 	useTempoD = True
+# if(kt_l > 1e-6):
+# 	useTempoL2 = True
+# if(kt > 1e-6 and kt_l > 1e-6):
+# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+# 	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -158,8 +185,9 @@ if (outputOnly):
 
 if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
+	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
 else:
+	# go this way
 	lowparalen = len(mfl)
 	highparalen = len(mfh)
 	mfl_tempo= np.append(mfl, mfl)
@@ -170,12 +198,26 @@ else:
 	mfh= np.append(mfh_tempo, mfh)
 	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
 	moh = np.append(moh, np.ones(highparalen)*2)
+	print('lowparalen: {}'.format(lowparalen))
+	print('highparalen: {}'.format(highparalen))
+	print('mfl_tempo: {}'.format(mfl_tempo))
+	print('mfl: {}'.format(mfl))
+	print('mol: {}'.format(mol))
+	print('mfh_tempo: {}'.format(mfh_tempo))
+	print('mfh: {}'.format(mfh))
+	print('moh: {}'.format(moh))
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
+	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
 
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
+
+# print(inputx[np.nonzero(inputx)])
+# print(len(inputx[np.nonzero(inputx)]))
+# print(y[np.nonzero(y>0.5)])
+# print(len(y[np.nonzero(y>0.5)]))
+# exit()
 if (not outputOnly): 
 	tiCr.addData(inputx,y)
 elif dataDimension == 3:
@@ -203,6 +245,13 @@ if useVorticities:
 	n_inputChannels += 3
 n_input *= n_inputChannels
 
+# for advecting particles
+particle_pos = []
+particle_vel = []
+
+test_path = ''
+from PIL import Image, ImageDraw
+
 # init paths
 if not load_model_test == -1:
 	if not os.path.exists(basePath + 'test_%04d/' % load_model_test):
@@ -217,6 +266,38 @@ if not load_model_test == -1:
 
 else:
 	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
+
+def drawParticles(name):
+	w = 2048
+	h = 2048
+	im = Image.new('RGB', (w, h), (0, 0, 0))
+	draw = ImageDraw.Draw(im)
+	for pos in particle_pos:
+		draw.ellipse((w * pos[0], h * pos[1], w * pos[0] + 1, h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+
+
+if outputOnly:
+	# read particles
+	with open('/nfs/hsu/repo/tempoGAN_master/tensorflow/2ddata_sim/sim_1111/particle_positions.txt') as f:
+		lines = [line.rstrip() for line in f]
+		for line in lines:
+			pos = line.split(' ')
+			# print(pos)
+			cur_pos = np.array(np.float32([pos[0], pos[1]]))
+			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1])) # around 0.5, 0.75
+
+			cur_pos[0], cur_pos[1] = cur_pos[0], cur_pos[1]
+			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1]))
+			# cur_pos[0], cur_pos[1] = cur_pos[0], 1. - cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], 1. - cur_pos[1]
+			particle_pos.append(cur_pos)
+			particle_vel.append(np.array([0., 0.]))
+	drawParticles('-1')
 
 # logging & info
 sys.stdout = ph.Logger(test_path)
@@ -235,12 +316,15 @@ if not outputOnly:
 	uniio.backupFile("../tools/GAN.py", test_path+"/zbu_src/") 
 	uniio.backupFile("../tools/fluiddataloader.py", test_path+"/zbu_src/")
 
-#input for gen
+# input for gen
 x = tf.placeholder(tf.float32, shape=[None, n_input])
-#reference input for disc
+# reference input for disc
 x_disc = tf.placeholder(tf.float32, shape=[None, n_input])
-#real input for disc
+# real input for disc
 y = tf.placeholder(tf.float32, shape=[None, n_output])
+print('n_input: {}'.format(n_input))
+print('n_output: {}'.format(n_output))
+
 kk = tf.placeholder(tf.float32)
 kk2 = tf.placeholder(tf.float32)
 kkt = tf.placeholder(tf.float32)
@@ -252,7 +336,7 @@ print("x: {}".format(x.get_shape()))
 # --- main graph setup ---
 
 rbId = 0
-def resBlock(gan, inp, s1,s2, reuse, use_batch_norm, filter_size=3):
+def resBlock(gan, inp, s1,s2, reuse, use_batch_norm, filter_size=3, use_leaky=False):
 	global rbId
 
 	# convolutions of resnet block
@@ -264,17 +348,21 @@ def resBlock(gan, inp, s1,s2, reuse, use_batch_norm, filter_size=3):
 		filter1 = [1,1,1]
 
 	gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	# gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.leaky_relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
 	gc2,_ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
 
 	# shortcut connection
 	gs1,_ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
+	
+	# resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
+	
+	resUnit1 = tf.add( gc2, gs1 )
 	rbId += 1
 	return resUnit1
 
 def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
-	print("\n\tGenerator (resize-resnett3-deep)")
+	print("\n\t Generator (resize-resnett3-deep)")
 	with tf.variable_scope("generator", reuse=reuse) as scope:
 
 		if dataDimension == 2:
@@ -285,16 +373,25 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 			patchShape = [2,2,2]
 		rbId = 0
 		gan = GAN(_in)
-	
+
 		gan.max_depool()
 		inp = gan.max_depool()
 		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
-
 		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		inRu3 = ru2
 		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False,5)
+		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
+
+
+		# gan.max_depool()
+		# inp = gan.max_depool()
+		# ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
+		# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+		# inRu3 = ru2
+		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
 
@@ -436,9 +533,9 @@ gen_model = locals()[genModel]
 disc_model = locals()[discModel]
 disc_time_model = disc_binclass_cond_tempo # tempo dis currently fixed
 
-#set up GAN structure
+# set up GAN structure
 bn=batch_norm
-#training or testing for batch norm
+# training or testing for batch norm
 train = tf.placeholder(tf.bool)
 
 if not outputOnly: #setup for training
@@ -465,16 +562,20 @@ def tensorResample(value, pos, name='Resample'):
 		assert (dim == pos_shape[-1])
 		floors = tf.cast(tf.floor(pos - 0.5), tf.int32)
 		ceils = floors + 1
-
+		print('floors: {}'.format(floors))
+		print('ceils: {}'.format(ceils))
 		# clamp min
 		floors = tf.maximum(floors, tf.zeros_like(floors))
 		ceils = tf.maximum(ceils, tf.zeros_like(ceils))
-
+		print('floors: {}'.format(floors))
+		print('ceils: {}'.format(ceils))
 		# clamp max
 		floors = tf.minimum(floors, tf.constant(value.get_shape().as_list()[1:dim + 1], dtype=tf.int32) - 1)
 
 		ceils = tf.minimum(ceils, tf.constant(value.get_shape().as_list()[1:dim + 1], dtype=tf.int32) - 1)
-
+		print('floors: {}'.format(floors))
+		print('ceils: {}'.format(ceils))
+		# input('hanging')
 		_broadcaster = tf.ones_like(ceils)
 		cell_value_list = []
 		cell_weight_list = []
@@ -507,13 +608,12 @@ if not outputOnly:
 
 		# loss of the discriminator with real input 
 		disc_loss_disc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc, labels=tf.ones_like(disc)))
-		#loss of the discriminator with input from generator
+		# loss of the discriminator with input from generator
 		disc_loss_gen = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.zeros_like(gen)))
 		disc_loss_layer = k2_l1*tf.reduce_mean(tf.nn.l2_loss(dy1 - gy1)) + k2_l2*tf.reduce_mean(tf.nn.l2_loss(dy2 - gy2)) + k2_l3*tf.reduce_mean(tf.nn.l2_loss(dy3 - gy3)) + k2_l4*tf.reduce_mean(tf.nn.l2_loss(dy4 - gy4))
 		disc_loss = disc_loss_disc * weight_dld + disc_loss_gen
-		#loss of the generator
+		# loss of the generator
 		gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.ones_like(gen)))
-	
 	else:
 		gen_loss = tf.zeros([1])
 		disc_loss_layer = tf.zeros([1])
@@ -524,6 +624,8 @@ if not outputOnly:
 
 	#uses sigmoid cross entropy and l1 - see cGAN paper
 	gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
+	print(gen_loss)
+	print(disc_loss_layer)
 
 	# set up decaying learning rate, if enabled
 	lr_global_step = tf.Variable(0, trainable=False)
@@ -767,6 +869,130 @@ def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False
 		batch_xts = np.reshape(batch_xts,[real_batch_sz, -1])
 	return batch_xts, batch_yts, batch_y_pos
 
+dt=1./240.
+def moveParticles():
+	for idx, pos in enumerate(particle_pos):
+		vel = particle_vel[idx]
+		pos += vel * dt
+		particle_pos[idx] = pos
+
+def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]):
+	'''
+		tiles_in_image: (y,x)
+		tiles: shape: (tile,y,x,c)
+	'''
+	tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+	if len(tiles)%tilesInImage!=0: 
+		print('ERROR: number of tiles does not match tiles per image')
+		return
+	tiles = np.asarray(tiles)
+	noImages = len(tiles)//tilesInImage
+	print('noImages: {}, len(tiles): {}, tilesInImage: {}'.format(noImages, len(tiles), tilesInImage))
+	grid = []
+	for image in range(noImages):
+		img = []
+		#combine tiles to image
+		for y in range(tiles_in_image[0]):
+			offset=image*tilesInImage + y*tiles_in_image[1]
+			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+		img = np.concatenate(img, axis=0) #combine y
+		# move channels to first dim.
+		img_c = np.rollaxis(img, -1, 0)
+		grid = img
+		# print('img size: {}'.format(img_c.shape)) # 3 x 256 x256
+		# if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
+		# 	if plot_vel_x_y: saveVel(img, path, imageCounter+image)
+		# 	if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
+		# if len(channels) == 1:
+		# 	scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+		# else:
+		# 	for i in channels:
+		# 		scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
+	
+
+
+	dx = 1./simSizeHigh
+	inv_dx = simSizeHigh
+
+	# max_grid_v = -100
+	# for gridi in range(256):
+	# 	for gridj in range(256):
+	# 		grid_vel = abs(grid[gridi][gridj])
+	# 		if grid_vel > max_grid_v:
+	# 			max_grid_v = grid_vel
+	# print('max vel: {}'.format(max_grid_v))
+
+	max_norm = -1.
+	real_vel = 0.
+	min_pv = 100000
+	max_pv = -100000
+	for idx, pos in enumerate(particle_pos):
+		pos2d = np.array([pos[0], pos[1]])
+		# print('##########################################')
+		# print('pos2d: {}'.format(pos2d))
+
+		# dx = 1/256
+		# print(pos2d) # checked correct
+		
+		number_of_ghost_cells_plus_one = 1
+		closest_cell=np.int16(pos2d * inv_dx+number_of_ghost_cells_plus_one)
+		# print('closest cell: {}'.format(closest_cell))
+		closest_cell_position = (np.float32(closest_cell) - np.array([1., 1.])) * dx + .5 * np.array([dx, dx])
+		X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
+		w = np.array([	[0., 0.],
+						[0., 0.],
+						[0., 0.]])
+		for axis in range(2):
+			x = X_eval[axis] * inv_dx
+			w[0][axis] = abs(.5*x*x - 1.5*x + 1.125)
+			x -= 1
+			w[1][axis] = abs(-x*x+.75)
+			x -= 1
+			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
+		# print('##########################################')
+		# suppose 0.5, 0.25 ~ 128, 64
+		vel = 0.
+		sum_weight = 0.
+		for i in range(3):
+			for j in range(3):
+				weight = w[i][0] * w[j][1]
+				sum_weight += weight
+				cur_cell = closest_cell + np.array([i, j])
+				ci, cj = cur_cell[0], cur_cell[1]
+				grid_vel = grid[ci][cj]
+				# if grid_vel < 5: # around .5, .75
+				# 	print(ci, cj)
+					# input('hanging')
+				# print('grid_vel: {}'.format(grid_vel))
+				vel += grid_vel*weight
+		if vel > max_pv:
+			max_pv = vel 
+		if vel < min_pv:
+			min_pv =vel
+		vel_norm = abs(vel)
+		if vel_norm > max_norm:
+			max_norm = vel_norm
+			real_vel = vel
+		particle_vel[idx][1] = vel
+	print('#####################################')
+	print('real vel: {}, norm: {}'.format(real_vel, max_norm))
+	print('min vel: {}, max vel: {}'.format(min_pv, max_pv))
+	print('#####################################')
+	# exit()
+ 
+    # // P2G
+    # for (int i = 0; i < 3; i++) {
+    #   for (int j = 0; j < 3; j++) {
+    #     auto dpos = (Vec(i, j) - fx) * dx;
+    #     // Translational momentum
+    #     Vector3 mass_x_velocity(p.v * particle_mass, particle_mass);
+    #     grid[base_coord.x + i][base_coord.y + j] += (
+    #       w[i].x*w[j].y * (mass_x_velocity + Vector3(affine * dpos, 0))
+    #     );
+    #   }
+    # }
+#   }
+
 #evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if premadeTiles:
@@ -781,6 +1007,8 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 		for tileno in range(batch_xs.shape[0]):
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+			# print('results: {}'.format(results.shape))
+			# input('hanging')
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
@@ -790,7 +1018,57 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		tc.savePngsGrayscale(resultTiles,outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		# tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
+
+# evaluate the generator (sampler) on the first step of the first simulation and output result
+def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
+	if premadeTiles:
+		#todo output for premadetiles
+		pass
+	else:
+		if (not outputOnly):
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities, useVorticities = useVorticities)
+		else:
+			batch_xs = inputx[frame_no]
+		resultTiles = []
+		# for tileno in range(batch_xs.shape[0]):
+		# 	# channels: 2/3
+		# 	# ts: 16, tn: 4
+		# 	# n_input = ts x ts x channels
+		# 	# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+		# 	# batch_xs_in = (tn * tn, n_input)
+		# 	print('batch_xs: {}'.format(batch_xs.shape))
+		# 	batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
+		# 	results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+		# 	resultTiles.extend(results)
+		for tileno in range(1):
+			# channels: 2/3
+			# ts: 16, tn: 4
+			# n_input = ts x ts x channels
+			# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+			# batch_xs_in = (tn * tn, n_input)
+			print('batch_xs: {}'.format(batch_xs.shape))
+			print('n_input: {}'.format(n_input))
+			# input('hanging')
+			batch_xs_in = np.reshape(batch_xs, [-1, n_input])
+			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+			resultTiles.extend(results)
+		resultTiles = np.array(resultTiles)
+		if dataDimension == 2: # resultTiles may have a different size
+			imgSz = int((resultTiles.shape[1]/n_inputChannels)**(1.0/2) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_inputChannels])
+		else:
+			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+		# TODO: uncomment
+		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
+		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image)
+		moveParticles()
+		drawParticles(str(frame_no))
+		# savePngs(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+
+
 
 def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if dataDimension == 2:
@@ -906,6 +1184,19 @@ def saveModel(cost, exampleOut=-1, imgPath = test_path):
 	global save_no
 	saver.save(sess, test_path + 'model_%04d.ckpt' % save_no)
 	msg = 'Saved Model %04d with cost %f.' % (save_no, cost)
+	
+	if cost < vis_threshold:
+		models.append(save_no)
+		costs.append(cost)
+		plt.plot(models,costs)
+		plt.xlabel("model number")
+		plt.ylabel("cost")
+		if not os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) +'/' ):
+			os.makedirs(test_path + 'costs_' + str(learning_rate_scalar) + '/')
+		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/cost.png'):
+			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/cost.png')
+		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/cost.png')
+
 	if exampleOut > -1:
 		generateValiImage(imageindex = save_no, outPath = imgPath)
 	save_no += 1
@@ -988,7 +1279,15 @@ if not outputOnly and trainGAN:
 			if use_spatialdisc:
 				for runs in range(discRuns):
 					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
-					_, disc_cost, summary,disc_sig,gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc,disc_sigmoid,gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
+					# print('batch_size_disc: {}'.format(batch_size_disc)) # 16
+					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 256)
+					# print('batch_ys: {}:\n{}'.format(batch_ys.shape, batch_ys)) # (16, 4096)
+					_, disc_cost, summary, disc_sig, gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc, disc_sigmoid,gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
+					# print('disc_optimizer: {}'.format(disc_optimizer))
+					# print('disc_loss shape: {}'.format(disc_loss.shape))
+					# print('disc_loss: {}'.format(disc_loss))
+					# print('disc_cost: {}'.format(disc_cost))
+					# input('hanging')
 					avgCost_disc += disc_cost
 					summary_writer.add_summary(summary, iteration)
 					if saveMD: summary_writer.add_run_metadata(run_metadata, 'dstep%d' % iteration)
@@ -1028,8 +1327,11 @@ if not outputOnly and trainGAN:
 					if(useTempoL2): 
 						train_dict[kktl] = kktin_l
 						getlist.append(tl_gen_loss)
-
+				# print('train dict: {}'.format(train_dict))
+				# print('getlist: {}'.format(getlist))
 				result_list = sess.run(getlist, feed_dict=train_dict, options=run_options, run_metadata=run_metadata)
+				# print('result list: {}'.format(result_list))
+				# input('hanging')
 				if (useTempoD and (not useTempoL2)):
 					if use_spatialdisc:
 						_, gen_cost, layer_cost, gen_l1_cost, summary, gen_l2_cost, gen_tem_cost = result_list
@@ -1053,6 +1355,7 @@ if not outputOnly and trainGAN:
 						_, gen_cost, layer_cost, gen_l1_cost, summary, gen_l2_cost = result_list
 					else:
 						_, gen_l1_cost, gen_l2_cost = result_list
+						gen_cost = gen_l1_cost
 					gen_tem_cost = 0
 					gen_tem_cost_l = 0
 				avgL1Cost_gen += gen_l1_cost
@@ -1297,7 +1600,8 @@ elif outputOnly:
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:
-			generateValiImage(fromSim,layerno,outPath = test_path, imageindex = layerno)
+			generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
+			generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
 		else:
 			generate3DUni(fromSim,layerno,outPath = test_path, imageindex = layerno)
 

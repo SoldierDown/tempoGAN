@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "ostream": "cpp"
+    },
+    "git.ignoreLimitWarning": true,
+    "python.pythonPath": "/home/ubuntu/anaconda3/envs/tempoGAN/bin/python"
+}
