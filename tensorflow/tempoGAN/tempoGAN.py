@@ -28,8 +28,12 @@ from GAN import GAN, lrelu
 import fluiddataloader as FDL
 
 import matplotlib.pyplot as plt
-models = []
-costs = []
+tc_costs = []
+gen_costs = []
+disc_costs = []
+tc_models = []
+gen_models = []
+disc_models = []
 # ---------------------------------------------
 
 def getchar():
@@ -136,21 +140,22 @@ overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifil
 # extras 
 collapse_z		= int(ph.getParam( "collapse_z",		   	False )) 
 vis_threshold	= float(ph.getParam( "visThreshold",		50000 ))
+draw_particles	= int(ph.getParam( "drawParticles",   	  True ))>0 		# GAN trainng can be switched off to use pretrainig only
 
 ph.checkUnusedParams()
 
 useTempoD = False
 useTempoL2 = False
-# if(kt > 1e-6):
-# 	useTempoD = True
-# if(kt_l > 1e-6):
-# 	useTempoL2 = True
-# if(kt > 1e-6 and kt_l > 1e-6):
-# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-# 	exit(1)
+if(kt > 1e-6):
+	useTempoD = True
+if(kt_l > 1e-6):
+	useTempoL2 = True
+if(kt > 1e-6 and kt_l > 1e-6):
+	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+	exit(1)
 
 # initialize
-upRes	  		= 2 # fixed for now...
+upRes	  		= 4 # fixed for now...
 simSizeHigh 	= simSizeLow * upRes
 tileSizeHigh	= tileSizeLow  * upRes
 
@@ -298,10 +303,11 @@ if outputOnly:
 			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], 1. - cur_pos[1]
 			particle_pos.append(cur_pos)
 			particle_vel.append(np.array([0., 0.]))
-	drawParticles('0')
+	if draw_particles:
+		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-256x256/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -391,24 +397,25 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		rbId = 0
 		gan = GAN(_in)
 
-		# gan.max_depool()
-		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
-		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
-		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		resF = tf.reshape( ru4, shape=[-1, n_output] )
-
-
-		# gan.max_depool()
+		# 2x
 		# inp = gan.max_depool()
-		# ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
+		# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
 		# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		# inRu3 = ru2
 		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
 		# resF = tf.reshape( ru4, shape=[-1, n_output] )
+
+		# 4x
+		gan.max_depool()
+		inp = gan.max_depool()
+		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
+		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+		inRu3 = ru2
+		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
+		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
 
@@ -1208,22 +1215,70 @@ def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex
 		head['dimZ'] = simLowLength*upRes
 		uniio.writeUni(outPath+'source_%04d.uni'%(frame_no+frameMin), head, high)
 
-def saveModel(cost, exampleOut=-1, imgPath = test_path):
+def saveModel(total_cost, disc_cost, gen_cost, exampleOut=-1, imgPath = test_path):
 	global save_no
 	saver.save(sess, test_path + 'model_%04d.ckpt' % save_no)
-	msg = 'Saved Model %04d with cost %f.' % (save_no, cost)
+	msg = 'Saved Model %04d with total_cost %f.' % (save_no, total_cost)
 	
-	if cost < vis_threshold:
-		models.append(save_no)
-		costs.append(cost)
-		plt.plot(models,costs)
+	if total_cost < vis_threshold:
+		tc_models.append(save_no)
+		tc_costs.append(total_cost)
+		plt.plot(tc_models,tc_costs)
 		plt.xlabel("model number")
-		plt.ylabel("cost")
+		plt.ylabel("total cost")
 		if not os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) +'/' ):
 			os.makedirs(test_path + 'costs_' + str(learning_rate_scalar) + '/')
-		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/cost.png'):
-			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/cost.png')
-		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/cost.png')
+		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/total_cost.png'):
+			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/total_cost.png')
+		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/total_cost.png')
+		plt.clf()
+
+	if disc_cost < vis_threshold:
+		disc_models.append(save_no)
+		disc_costs.append(disc_cost)
+		plt.plot(disc_models, disc_costs)
+		plt.xlabel("model number")
+		plt.ylabel("disc cost")
+		if not os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) +'/' ):
+			os.makedirs(test_path + 'costs_' + str(learning_rate_scalar) + '/')
+		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/disc_cost.png'):
+			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/disc_cost.png')
+		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/disc_cost.png')
+		plt.clf()
+
+
+	if gen_cost < vis_threshold:
+		gen_models.append(save_no)
+		gen_costs.append(gen_cost)
+		plt.plot(gen_models, gen_costs)
+		plt.xlabel("model number")
+		plt.ylabel("gen cost")
+		if not os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) +'/' ):
+			os.makedirs(test_path + 'costs_' + str(learning_rate_scalar) + '/')
+		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/gen_cost.png'):
+			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/gen_cost.png')
+		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/gen_cost.png')
+		plt.clf()
+
+	# all in one 
+	if total_cost < vis_threshold:
+		plt.plot(tc_models, tc_costs, label = "total cost")
+		plt.plot(gen_models, gen_costs, label = "gen cost")
+		plt.plot(disc_models, disc_costs, label = "disc cost")
+
+		plt.xlabel('model')
+		# Set the y axis label of the current axis.
+		plt.ylabel('cost')
+		# Set a title of the current axes.
+		plt.legend()
+		# Display a figure.
+		if not os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) +'/' ):
+			os.makedirs(test_path + 'costs_' + str(learning_rate_scalar) + '/')
+		if os.path.exists(test_path + 'costs_' + str(learning_rate_scalar) + '/comp.png'):
+			os.remove(test_path + 'costs_' + str(learning_rate_scalar) + '/comp.png')
+		plt.savefig(test_path + 'costs_' + str(learning_rate_scalar) +'/comp.png')
+		plt.clf()
+
 
 	if exampleOut > -1:
 		generateValiImage(imageindex = save_no, outPath = imgPath)
@@ -1399,7 +1454,7 @@ if not outputOnly and trainGAN:
 			if ((disc_cost+gen_cost < lastCost) or alwaysSave) and (lastSave >= saveInterval):
 				lastSave = 1
 				lastCost = disc_cost+gen_cost
-				saveMsg = saveModel(lastCost)
+				saveMsg = saveModel(lastCost, disc_cost, gen_cost)
 				saved = True
 			else:
 				lastSave += 1
@@ -1629,7 +1684,8 @@ elif outputOnly:
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:
 			generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
-			generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
+			if draw_particles:
+				generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
 		else:
 			generate3DUni(fromSim,layerno,outPath = test_path, imageindex = layerno)
 

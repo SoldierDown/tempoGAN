@@ -51,7 +51,7 @@ def RU_read_content(bytestream, header):
 	# 	print(val)
 	tmp_pos = data[np.nonzero(data >= 0.)]
 	tmp_neg = data[np.nonzero(data < 0.)]
-	tmp_in = tmp_neg[np.nonzero(tmp_neg<-4.5)]
+	tmp_in = tmp_pos[np.nonzero(tmp_pos>4.5)]
 	print('tmp_in: {}'.format(tmp_in))
 	print(len(tmp_in))
 	return data
