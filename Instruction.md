@@ -48,3 +48,14 @@ python example_run_training.py
 python example_run_output.py
 # AWS + git + X forwarding
 ssh -X -A hsu-aws
+
+
+
+# image to video
+1. sort
+find . -type f -name '*.bmp' | sort -V > list
+2. convert 
+mencoder mf://@list -mf fps=240:type=bmp -o ../reference.mp4 -ovc lavc
+
+# video to gif
+ffmpeg -i ../reference.mp4 ../reference.gif

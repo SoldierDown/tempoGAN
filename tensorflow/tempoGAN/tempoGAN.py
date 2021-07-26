@@ -154,6 +154,48 @@ if(kt > 1e-6 and kt_l > 1e-6):
 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
 	exit(1)
 
+# result: useTempoD
+# for advecting particles
+particle_pos = []
+particle_vel = []
+timesteps = []
+test_path = ''
+from PIL import Image, ImageDraw
+def drawParticles(name):
+	w = 2048
+	h = 2048
+	im = Image.new('RGB', (w, h), (0, 0, 0))
+	draw = ImageDraw.Draw(im)
+	half_cell_width = 10
+	for pos in particle_pos:
+		# draw.ellipse((w * pos[0], h * pos[1], w * pos[0] + 1, h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		draw.ellipse(( h * pos[1] -half_cell_width, w * pos[0] - half_cell_width, h * pos[1] + half_cell_width, w * pos[0] + half_cell_width), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+# test
+if False:
+	# read particles
+	test_path = '.'
+	with open('/nfs/hsu/repo/tempoGAN_master/tensorflow/tempoGAN/particle_pos.txt') as f:
+		lines = [line.rstrip() for line in f]
+		for line in lines:
+			pos = line.split(' ')
+			# print(pos)
+			cur_pos = np.array(np.float32([pos[0], pos[1]]))
+			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1])) # around 0.5, 0.25
+
+			cur_pos[0], cur_pos[1] = cur_pos[0], cur_pos[1]
+			print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1]))
+			# cur_pos[0], cur_pos[1] = cur_pos[0], 1. - cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], cur_pos[1]
+			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], 1. - cur_pos[1]
+			particle_pos.append(cur_pos)
+			particle_vel.append(np.array([0., 0.]))
+	if draw_particles:
+		drawParticles('0')
+	exit()
 # initialize
 upRes	  		= 4 # fixed for now...
 simSizeHigh 	= simSizeLow * upRes
@@ -166,11 +208,11 @@ if not (dataDimension == 2 or dataDimension == 3):
 if toSim==-1:
 	toSim = fromSim
 
-channelLayout_low = 'd'
-lowfilename = "density_low_%04d.uni"
-highfilename = "density_high_%04d.uni"
-mfl = ["density"]
-mfh = ["density"]
+channelLayout_low = 'vx,vy,vz'
+lowfilename = "velocity_low_%04d.uni"
+highfilename = "velocity_high_%04d.uni"
+mfl = ["velocity"]
+mfh = ["velocity"]
 if outputOnly: 
 	highfilename = None
 	mfh = None
@@ -217,7 +259,20 @@ else:
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
+print(inputx.shape) # 24, 1, 64, 64, 9
+# sp = inputx.shape
+# for fr in range(sp[0]):
+# 	for dz in range(sp[1]):
+# 		for dx in range(sp[2]):
+# 			for dy in range(sp[3]):
+# 				cur_d = inputx[fr][dz][dx][dy]
+# 				if not (cur_d[0] == 0 and cur_d[1] == 0 and cur_d[2] == 0):
+# 					print('{},{},{}'.format(dz, dx, dy))
+# 					exit()
 
+
+# print(y.shape)		# 24, 1, 256, 256, 9
+input('hanging')
 # print(inputx[np.nonzero(inputx)])
 # print(len(inputx[np.nonzero(inputx)]))
 # print(y[np.nonzero(y>0.5)])
@@ -242,20 +297,16 @@ n_output = tileSizeHigh ** 2
 if dataDimension == 3:
 	n_input  *= tileSizeLow
 	n_output *= (tileSizeLow*upRes)
-n_inputChannels = 1
+n_inputChannels = 3
 
 if useVelocities:
 	n_inputChannels += 3
 if useVorticities:
 	n_inputChannels += 3
 n_input *= n_inputChannels
+n_output *= n_inputChannels
 
-# for advecting particles
-particle_pos = []
-particle_vel = []
-timesteps = []
-test_path = ''
-from PIL import Image, ImageDraw
+
 
 # init paths
 if not load_model_test == -1:
@@ -272,23 +323,12 @@ if not load_model_test == -1:
 else:
 	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
-def drawParticles(name):
-	w = 2048
-	h = 2048
-	im = Image.new('RGB', (w, h), (0, 0, 0))
-	draw = ImageDraw.Draw(im)
-	for pos in particle_pos:
-		# draw.ellipse((w * pos[0], h * pos[1], w * pos[0] + 1, h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-		draw.ellipse(( h * pos[1], w * pos[0], h * pos[1] + 1, w * pos[0] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-		# draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+
 
 
 if outputOnly:
 	# read particles
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1000-64x64/particle_positions.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			pos = line.split(' ')
@@ -297,17 +337,18 @@ if outputOnly:
 			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1])) # around 0.5, 0.25
 
 			cur_pos[0], cur_pos[1] = cur_pos[0], cur_pos[1]
-			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1]))
+			print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1]))
 			# cur_pos[0], cur_pos[1] = cur_pos[0], 1. - cur_pos[1]
 			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], cur_pos[1]
 			# cur_pos[0], cur_pos[1] = 1. - cur_pos[0], 1. - cur_pos[1]
 			particle_pos.append(cur_pos)
 			particle_vel.append(np.array([0., 0.]))
+	input('hanging')
 	if draw_particles:
 		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1000-64x64/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -354,9 +395,10 @@ print("x: {}".format(x.get_shape()))
 		# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		# inRu3 = ru2
 		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# ru4 = resBlock(gan, ru3, 2, 3,  reuse, False, 5)
 
 rbId = 0
+# s1: 
 def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=False):
 	global rbId
 
@@ -368,13 +410,11 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=
 		filter = [filter_size,filter_size,filter_size]
 		filter1 = [1,1,1]
 
-	gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	# gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.leaky_relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	gc2,_ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
+	gc1, _ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	gc2, _ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
 
 	# shortcut connection
-	gs1,_ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	
+	gs1, _ = gan.convolutional_layer(  s2, filter1, None     , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
 	# resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
 	if use_linear:
 		resUnit1 = tf.add( gc2, gs1 )
@@ -387,9 +427,10 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
 	print("\n\t Generator (resize-resnett3-deep)")
 	with tf.variable_scope("generator", reuse=reuse) as scope:
-
 		if dataDimension == 2:
+			print('_in shape: {}'.format(_in.shape))
 			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) #NHWC
+			print('_in shape: {}'.format(_in.shape))
 			patchShape = [2,2]
 		elif dataDimension == 3:
 			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, n_inputChannels]) #NDHWC
@@ -407,15 +448,18 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		# resF = tf.reshape( ru4, shape=[-1, n_output] )
 
 		# 4x
-		gan.max_depool()
-		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
-		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+		gan.max_depool() 				# 2x
+		inp = gan.max_depool()			# 4x
+		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8, reuse, use_batch_norm, 5) 
+		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, 5)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
+		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm,5)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		ru4 = resBlock(gan, ru3, 4, 3, reuse, False, 5, use_linear = True)
+		print('ru4 shape: {}'.format(ru4.shape))
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
+		print('resF shape: {}'.format(resF.shape))
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
 
@@ -430,9 +474,17 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
 			shape = tf.shape(in_low)
-			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
+			# original
+			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
+			# in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) #NHWC
+			# in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 1])
+			# edit for velocity field
+			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input)])
 			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) #NHWC
+			print('in_high shape: {}, reshape: {},{},{}'.format(in_high.shape, tileSizeHigh, tileSizeHigh, 1))
 			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 1])
+			print(in_low.shape) 	# 64, 64, 3
+			print(in_high.shape)	# 64, 64, 3
 			filter=[4,4]
 			stride = [2]
 			stride2 = [2]
@@ -950,7 +1002,6 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 
 	min_pv = 100000
 	max_pv = -100000
-	mean_pv = 0.
 	ss = 0.
 	cnt = 0
 	for idx, pos in enumerate(particle_pos):
@@ -978,7 +1029,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
 		# print('##########################################')
 		# suppose 0.5, 0.25 ~ 128, 64
-		vel = 0.
+		vel = np.zeros(2)
 		sum_weight = 0.
 		for i in range(3):
 			for j in range(3):
@@ -987,30 +1038,25 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 				cur_cell = closest_cell + np.array([i, j])
 				ci, cj = cur_cell[0], cur_cell[1]
 				grid_vel = grid[ci][cj]
+				grid_vel2d = np.array([grid_vel[0], grid_vel[1]])
 				# if grid_vel > 2: # around .5, .25
 				# 	print(ci, cj)
 					# input('hanging')
 				# print('grid_vel: {}'.format(grid_vel))
-				vel += grid_vel*weight
-		particle_vel[idx][1] = vel
-		mean_pv += vel
-		if vel > max_pv:
-			max_pv = vel 
-		if vel < min_pv:
-			min_pv =vel
+				vel += grid_vel2d * weight
+		particle_vel[idx] = vel
+		vel_norm = np.linalg.norm(vel)
+		if vel_norm > max_pv:
+			max_pv = vel_norm
+		if vel_norm < min_pv:
+			min_pv = vel_norm
 		cnt += 1
 	if cnt == 0:
 		cnt = 1
-	mean_pv /= cnt
-	for idx in range(len(particle_vel)):
-		cur_v = particle_vel[idx][1]
-		ss += (cur_v - mean_pv)**2
 	if cnt == 1:
 		cnt = 2
-	ss /= (cnt - 1)
 	print('#####################################')
 	print('min vel: {}, max vel: {}'.format(min_pv, max_pv))
-	print('mean vel: {}, ss: {}'.format(mean_pv, ss))
 	print('#####################################')
 	# exit()
  
@@ -1042,7 +1088,6 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
 			# print('results: {}'.format(results.shape))
-			# input('hanging')
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
@@ -1052,9 +1097,9 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
 		# tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
-		# tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
+		# tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
 
 # evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
@@ -1101,7 +1146,6 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image)
 		moveParticles(frame_no=frame_no)
 		drawParticles(str(frame_no + 1))
-		# savePngs(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
 
 
 
@@ -1348,7 +1392,7 @@ if not outputOnly and trainGAN:
 		avgValiOut_disc_gen_t = 0
 		avgValiCost_gen_t = 0
 		avgValiCost_gen_t_l = 0
-		
+		# print('begin iterating')		
 		for iteration in range(trainingIters):
 			lrgs = max(0, iteration-(trainingIters//2)) # LR counter, start decay at half time... (if enabled) 
 			run_options = None; run_metadata = None
@@ -1356,7 +1400,8 @@ if not outputOnly and trainGAN:
 				run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
 				run_metadata = tf.RunMetadata()
 
-
+			# print('save0')
+			# input('0')
 			# TRAIN MODEL
 			# discriminator variables; with real and generated input
 			if use_spatialdisc:
@@ -1374,7 +1419,8 @@ if not outputOnly and trainGAN:
 					avgCost_disc += disc_cost
 					summary_writer.add_summary(summary, iteration)
 					if saveMD: summary_writer.add_run_metadata(run_metadata, 'dstep%d' % iteration)
-
+			# print('save1')
+			# input('1')
 			# temporal discriminator
 			if(useTempoD):
 				for runs in range(discRuns):
@@ -1385,6 +1431,8 @@ if not outputOnly and trainGAN:
 						[t_disc_optimizer, t_disc_loss, lossTrain_disc_t, t_disc_sigmoid, t_gen_sigmoid], feed_dict=dict_train)
 					avgTemCost_disc += t_disc_cost
 					summary_writer.add_summary(summary, iteration)
+			# print('save2')
+			# input('2')
 					
 			# generator variables
 			for runs in range(genRuns):
@@ -1683,7 +1731,7 @@ elif outputOnly:
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:
-			generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
+			# generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
 			if draw_particles:
 				generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
 		else:

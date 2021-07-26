@@ -49,11 +49,19 @@ def RU_read_content(bytestream, header):
 	# data = -5. * np.ones(dimensions)
 	# for val in data:
 	# 	print(val)
-	tmp_pos = data[np.nonzero(data >= 0.)]
-	tmp_neg = data[np.nonzero(data < 0.)]
-	tmp_in = tmp_pos[np.nonzero(tmp_pos>4.5)]
-	print('tmp_in: {}'.format(tmp_in))
-	print(len(tmp_in))
+	print(data.shape)
+	tmp_data = data.flatten()
+	length = len(tmp_data)
+	dmin = 1e10
+	dmax = -1e10
+	for i in range(length):
+		cur_d = tmp_data[i]
+		if cur_d > dmax:
+			dmax = cur_d 
+		if cur_d < dmin:
+			dmin = cur_d
+	print('min: {}, max: {}'.format(dmin, dmax))
+	# input('hanging')
 	return data
 	# return data.reshape( *dimensions, order='C')
 

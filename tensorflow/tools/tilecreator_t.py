@@ -48,12 +48,13 @@ seed( 42 )
 # default channel layouts
 C_LAYOUT = {
 	'dens':C_KEY_DEFAULT,
+	'vel':'vx,vy,vz',
 	'dens_vel':'d,vx,vy,vz'
 	}
 
 class TileCreator(object):
 
-	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['dens_vel'], channelLayout_high=C_LAYOUT['dens'], highIsLabel=False, loadPN=False, padding=0):
+	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['vel'], channelLayout_high=C_LAYOUT['vel'], highIsLabel=False, loadPN=False, padding=0):
 		'''
 			tileSizeLow, simSizeLow: int, [int,int] if 2D, [int,int,int]
 			channelLayout: 'key,key,...'
