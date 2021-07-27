@@ -167,9 +167,9 @@ if toSim==-1:
 
 channelLayout_low = 'd'
 lowfilename = "density_low_%04d.uni"
-highfilename = "density_high_%04d.uni"
+highfilename = "velocity_high_%04d.uni"
 mfl = ["density"]
-mfh = ["density"]
+mfh = ["velocity"]
 if outputOnly: 
 	highfilename = None
 	mfh = None
@@ -194,20 +194,18 @@ else:
 	# go this way
 	lowparalen = len(mfl)
 	highparalen = len(mfh)
-	mfl_tempo= np.append(mfl, mfl)
-	mfl= np.append(mfl_tempo, mfl)
+	mfl_tmp= np.append(mfl, mfl)
+	mfl= np.append(mfl_tmp, mfl)
 	mol = np.append(np.zeros(lowparalen), np.ones(lowparalen))
 	mol = np.append(mol, np.ones(lowparalen)*2)
-	mfh_tempo = np.append(mfh, mfh)
-	mfh= np.append(mfh_tempo, mfh)
+	mfh_tmp = np.append(mfh, mfh)
+	mfh= np.append(mfh_tmp, mfh)
 	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
 	moh = np.append(moh, np.ones(highparalen)*2)
 	print('lowparalen: {}'.format(lowparalen))
 	print('highparalen: {}'.format(highparalen))
-	print('mfl_tempo: {}'.format(mfl_tempo))
 	print('mfl: {}'.format(mfl))
 	print('mol: {}'.format(mol))
-	print('mfh_tempo: {}'.format(mfh_tempo))
 	print('mfh: {}'.format(mfh))
 	print('moh: {}'.format(moh))
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
@@ -862,7 +860,7 @@ def addVorticity(Vel):
 						vorout[l][i][j][k][2] = 0.5 * ((Vel[l][i+1][j][k][1] - Vel[l][i-1][j][k][1]) - (Vel[l][i][j+1][k][0] - Vel[l][i][j-1][k][0]))
 	return vorout
 
-def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False, useVelocities = False):
+def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False):
 	if randomtile == False:
 		batch_xs, batch_ys = tiCr.getFrameTiles(index) 
 	else:
@@ -871,7 +869,7 @@ def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, us
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
 
-def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, useVelocities = False, n_t = 3, dt=1.0, adv_flag = 1.0):
+def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, n_t = 3, dt=1.0, adv_flag = 1.0):
 	batch_xts, batch_yts, batch_y_pos = tiCr.selectRandomTempoTiles(batch_size, isTraining, useDataAugmentation, n_t, dt, adv_flag)
 	return batch_xts, batch_yts, batch_y_pos
 
@@ -1016,7 +1014,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 		pass
 	else:
 		if (not outputOnly):
-			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities)
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
 		resultTiles = []
@@ -1045,7 +1043,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		pass
 	else:
 		if (not outputOnly):
-			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities)
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
 		resultTiles = []
@@ -1337,7 +1335,7 @@ if not outputOnly and trainGAN:
 			# discriminator variables; with real and generated input
 			if use_spatialdisc:
 				for runs in range(discRuns):
-					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities)
+					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation)
 					# print('batch_size_disc: {}'.format(batch_size_disc)) # 16
 					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 256)
 					# print('batch_ys: {}:\n{}'.format(batch_ys.shape, batch_ys)) # (16, 4096)
@@ -1354,7 +1352,7 @@ if not outputOnly and trainGAN:
 			# temporal discriminator
 			if(useTempoD):
 				for runs in range(discRuns):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
 					dict_train = {x_t:batch_xts, y_t:batch_yts, keep_prob: dropout, train: True}
 					if(ADV_flag): dict_train[y_pos] = batch_y_pos
 					_, t_disc_cost, summary, t_disc_sig, t_gen_sig = sess.run(
@@ -1364,7 +1362,7 @@ if not outputOnly and trainGAN:
 					
 			# generator variables
 			for runs in range(genRuns):
-				batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities)
+				batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation)
 				kkin = k_f*kkin
 				kk2in = k2_f*kk2in
 				# TODO a decay for weights, kktin = kt_f * kktin (kt_f<1.0)
@@ -1376,7 +1374,7 @@ if not outputOnly and trainGAN:
 				else:
 					getlist = [gen_optimizer, gen_l1_loss, gen_l2_loss]
 				if(useTempoD or useTempoL2):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
 					train_dict[x_t] = batch_xts
 					if(ADV_flag):
 						train_dict[y_pos] = batch_y_pos
@@ -1440,7 +1438,7 @@ if not outputOnly and trainGAN:
 			if (iteration + 1) % valiInterval == 0:
 				if use_spatialdisc:
 					# gather statistics from training
-					batch_xs, batch_ys = getInput(batch_size = numValis, useVelocities = useVelocities)
+					batch_xs, batch_ys = getInput(batch_size = numValis)
 					disc_out, summary_disc_out, gen_out, summary_gen_out = sess.run([disc_sigmoid, outTrain_disc_real, gen_sigmoid, outTrain_disc_gen], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: False})
 					summary_writer.add_summary(summary_disc_out, iteration)
 					summary_writer.add_summary(summary_gen_out, iteration)
@@ -1449,7 +1447,7 @@ if not outputOnly and trainGAN:
 
 					# validation starts here...
 					# get vali data
-					batch_xs, batch_ys = getInput(batch_size = numValis, isTraining=False, useVelocities = useVelocities)
+					batch_xs, batch_ys = getInput(batch_size = numValis, isTraining=False)
 					#disc with real imput
 					disc_out_real, summary_vali_out, disc_vali_cost_real, summary_vali = sess.run([disc_sigmoid, outVali_disc_real, disc_loss_disc, lossVali_disc_disc], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropoutOutput, train: False})
 					summary_writer.add_summary(summary_vali, iteration)
@@ -1465,7 +1463,7 @@ if not outputOnly and trainGAN:
 				
 				if(useTempoD): # temporal logs
 					# T disc output with training data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, useVelocities = useVelocities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, n_t = 3, dt=dt, adv_flag = ADV_flag)
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
 						vali_dict[y_pos] = batch_y_pos
@@ -1478,7 +1476,7 @@ if not outputOnly and trainGAN:
 					avgOut_gen_t += t_gen_out
 
 					# validation data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, useVelocities = useVelocities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, n_t = 3, dt=dt, adv_flag = ADV_flag)
 					# disc with real input
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
