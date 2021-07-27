@@ -31,3 +31,10 @@ works for all -5s 64x64 to all -5 256x256, without activation functions: 132-126
 
 get better using data augmentation
 153-643 with lr = 1e-4, pos_mean_v = [4.81]
+
+
+
+single sim              load_model_test 243  load_model_no 116
+single set of sims      load_model_test 244  load_model_no 205
+two sets of sims        load_model_test 245  load_model_no 469
+

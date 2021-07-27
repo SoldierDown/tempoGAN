@@ -953,7 +953,7 @@ def moveParticles(frame_no):
 		pos += vel * dt
 		particle_pos[idx] = pos
 
-def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]):
+def buildVelField(tiles, path, frame_no, imageCounter=0, tiles_in_image=[1,1], channels=[0]):
 	'''
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
@@ -1059,7 +1059,19 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	print('min vel: {}, max vel: {}'.format(min_pv, max_pv))
 	print('#####################################')
 	# exit()
- 
+
+	vel_file = open(test_path + '/' + 'generated_vel_field_{:04d}'.format(int(frame_no))+'.txt',"w")
+	sz = grid.shape
+	dx = 1. / sz[0]
+	for i in range(sz[0]):
+		for j in range(sz[1]):
+			cellx = dx * 0.5 + dx * i
+			celly = dx * 0.5 + dx * j
+			grid_vel = grid[i][j]
+			print(grid[i][i])
+			vel_file.write('{} {} {} {}\n'.format(cellx, celly, grid_vel[0], grid_vel[1]))
+	exit()
+	# vel_file.write("Hello \n")
     # // P2G
     # for (int i = 0; i < 3; i++) {
     #   for (int j = 0; j < 3; j++) {
@@ -1075,6 +1087,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 
 #evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
+	return
 	if premadeTiles:
 		#todo output for premadetiles
 		pass
@@ -1143,7 +1156,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
 		# TODO: uncomment
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image)
+		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image, frame_no=frame_no)
 		moveParticles(frame_no=frame_no)
 		drawParticles(str(frame_no + 1))
 

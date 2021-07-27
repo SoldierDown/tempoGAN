@@ -10,7 +10,7 @@ import os
 
 # os.system('python tempoGAN.py learningRate 0.0002 drawParticles 0 visThreshold 5000000 simSize 64 use_spatialdisc 1 saveInterval 50 randSeed 42 out 0 trainingIters 120000 lambda 5.0 lambda2 -0.00001 discRuns 2 genRuns 2 alwaysSave 1 fromSim 8600 toSim 8600 outputInterval 200 genValiImg 1 dataDim 2 batchSize 16 useVelocities 0 useVorticities 0 gif 0 genModel gen_resnet discModel disc_binclass basePath ../2ddata_gan/ loadPath ../2ddata_sim/ lambda_t 1.0 lambda_t_l2 0.0 frameMax 240 data_fraction 0.1 adv_flag 0 dataAugmentation 1 rot 2 decayLR 1')
 
-os.system('python tempoGAN.py learningRate 0.0002 drawParticles 0 visThreshold 5000000 simSize 64 use_spatialdisc 1 saveInterval 50 randSeed 42 out 0 trainingIters 120000 lambda 5.0 lambda2 -0.00001 discRuns 2 genRuns 2 alwaysSave 1 fromSim 8600 toSim 8617 outputInterval 200 genValiImg 1 dataDim 2 batchSize 16 useVelocities 0 useVorticities 0 gif 0 genModel gen_resnet discModel disc_binclass basePath ../2ddata_gan/ loadPath ../2ddata_sim/ lambda_t 1.0 lambda_t_l2 0.0 frameMax 240 data_fraction 0.1 adv_flag 0 dataAugmentation 0 rot 2 decayLR 1')
+os.system('python tempoGAN.py load_model_test 246 load_model_no 244 learningRate 0.00002 drawParticles 0 visThreshold 5000000 simSize 64 use_spatialdisc 1 saveInterval 50 randSeed 42 out 0 trainingIters 120000 lambda 5.0 lambda2 -0.00001 discRuns 2 genRuns 2 alwaysSave 1 fromSim 8618 toSim 8635 outputInterval 200 genValiImg 1 dataDim 2 batchSize 16 useVelocities 0 useVorticities 0 gif 0 genModel gen_resnet discModel disc_binclass basePath ../2ddata_gan/ loadPath ../2ddata_sim/ lambda_t 1.0 lambda_t_l2 0.0 frameMax 240 data_fraction 0.1 adv_flag 0 dataAugmentation 0 rot 2 decayLR 1')
 
 
 """
