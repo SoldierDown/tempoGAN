@@ -111,7 +111,6 @@ bn_decay		= float(ph.getParam( "bnDecay",	   0.999 ))				# decay of batch norm E
 use_spatialdisc = int(ph.getParam( "use_spatialdisc",		   True )) 	# use spatial discriminator or not
 
 useVelocities   = int(ph.getParam( "useVelocities",   0  )) 			# use velocities or not
-useVorticities  = int(ph.getParam( "useVorticities",   0  )) 			# use vorticities or not
 premadeTiles	= int(ph.getParam( "premadeTiles",   0  ))		 		# use pre-made tiles?
 
 useDataAugmentation = int(ph.getParam( "dataAugmentation", 0 ))		 	# use dataAugmentation or not
@@ -140,7 +139,7 @@ overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifil
 # extras 
 collapse_z		= int(ph.getParam( "collapse_z",		   	False )) 
 vis_threshold	= float(ph.getParam( "visThreshold",		50000 ))
-draw_particles	= int(ph.getParam( "drawParticles",   	  True ))>0 		# GAN trainng can be switched off to use pretrainig only
+draw_particles	= int(ph.getParam( "drawParticles",   	  True ))>0 		
 
 ph.checkUnusedParams()
 
@@ -245,8 +244,6 @@ if dataDimension == 3:
 n_inputChannels = 1
 
 if useVelocities:
-	n_inputChannels += 3
-if useVorticities:
 	n_inputChannels += 3
 n_input *= n_inputChannels
 
@@ -865,32 +862,17 @@ def addVorticity(Vel):
 						vorout[l][i][j][k][2] = 0.5 * ((Vel[l][i+1][j][k][1] - Vel[l][i-1][j][k][1]) - (Vel[l][i][j+1][k][0] - Vel[l][i][j-1][k][0]))
 	return vorout
 
-def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False, useVelocities = False, useVorticities = False):
+def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False, useVelocities = False):
 	if randomtile == False:
 		batch_xs, batch_ys = tiCr.getFrameTiles(index) 
 	else:
 		batch_xs, batch_ys = tiCr.selectRandomTiles(selectionSize = batch_size, augment=useDataAugmentation)	
-
-	if useVelocities and useVorticities:
-		Velinput = batch_xs[:,:,:,:,tiCr.c_lists[tc.DATA_KEY_LOW][tc.C_KEY_VELOCITY][0]]
-		Vorinput = addVorticity(Velinput)
-		batch_xs = np.concatenate((batch_xs, Vorinput), axis = 4)
 	batch_xs = np.reshape(batch_xs, (-1, n_input))
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
 
-def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, useVelocities = False, useVorticities = False, n_t = 3, dt=1.0, adv_flag = 1.0):
+def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, useVelocities = False, n_t = 3, dt=1.0, adv_flag = 1.0):
 	batch_xts, batch_yts, batch_y_pos = tiCr.selectRandomTempoTiles(batch_size, isTraining, useDataAugmentation, n_t, dt, adv_flag)
-	if useVelocities and useVorticities:
-		real_batch_sz = batch_xts.shape[0]
-		if( dataDimension == 2):
-			batch_xts = np.reshape(batch_xts,[real_batch_sz,1,tileSizeLow,tileSizeLow,-1])
-		else:
-			batch_xts = np.reshape(batch_xts,[real_batch_sz,tileSizeLow,tileSizeLow,tileSizeLow,-1])
-		Velinput = batch_xts[:,:,:,:,tiCr.c_lists[tc.DATA_KEY_LOW][tc.C_KEY_VELOCITY][0]]
-		Vorinput = addVorticity(Velinput)
-		batch_xts = np.concatenate((batch_xts, Vorinput), axis = 4)
-		batch_xts = np.reshape(batch_xts,[real_batch_sz, -1])
 	return batch_xts, batch_yts, batch_y_pos
 
 def moveParticles(frame_no):
@@ -1034,7 +1016,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 		pass
 	else:
 		if (not outputOnly):
-			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities, useVorticities = useVorticities)
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities)
 		else:
 			batch_xs = inputx[frame_no]
 		resultTiles = []
@@ -1063,7 +1045,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		pass
 	else:
 		if (not outputOnly):
-			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities, useVorticities = useVorticities)
+			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no, useVelocities = useVelocities)
 		else:
 			batch_xs = inputx[frame_no]
 		resultTiles = []
@@ -1117,12 +1099,6 @@ def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex
 			print("Wrong parameters for 3d output!")	
 			exit(1)
 		batch_xs = inputx[frame_no]
-		if useVelocities and useVorticities:
-			batch_xs = np.reshape(batch_xs,[1,simLowLength,simLowWidth,simLowHeight,-1])
-			Velinput = batch_xs[:,:,:,:,tiCr.c_lists[tc.DATA_KEY_LOW][tc.C_KEY_VELOCITY][0]]
-			Vorinput = addVorticity(Velinput)
-			batch_xs = np.concatenate((batch_xs, Vorinput), axis = 4)
-			batch_xs = np.reshape(batch_xs,[simLowLength,simLowWidth,simLowHeight,-1])
 		tiles = []
 		batch_xs=np.reshape(batch_xs,[simLowLength,simLowWidth,simLowHeight,-1])
 
@@ -1361,7 +1337,7 @@ if not outputOnly and trainGAN:
 			# discriminator variables; with real and generated input
 			if use_spatialdisc:
 				for runs in range(discRuns):
-					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
+					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities)
 					# print('batch_size_disc: {}'.format(batch_size_disc)) # 16
 					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 256)
 					# print('batch_ys: {}:\n{}'.format(batch_ys.shape, batch_ys)) # (16, 4096)
@@ -1378,7 +1354,7 @@ if not outputOnly and trainGAN:
 			# temporal discriminator
 			if(useTempoD):
 				for runs in range(discRuns):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useDataAugmentation = useDataAugmentation, adv_flag = ADV_flag)
 					dict_train = {x_t:batch_xts, y_t:batch_yts, keep_prob: dropout, train: True}
 					if(ADV_flag): dict_train[y_pos] = batch_y_pos
 					_, t_disc_cost, summary, t_disc_sig, t_gen_sig = sess.run(
@@ -1388,7 +1364,7 @@ if not outputOnly and trainGAN:
 					
 			# generator variables
 			for runs in range(genRuns):
-				batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities, useVorticities = useVorticities)
+				batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation, useVelocities = useVelocities)
 				kkin = k_f*kkin
 				kk2in = k2_f*kk2in
 				# TODO a decay for weights, kktin = kt_f * kktin (kt_f<1.0)
@@ -1400,7 +1376,7 @@ if not outputOnly and trainGAN:
 				else:
 					getlist = [gen_optimizer, gen_l1_loss, gen_l2_loss]
 				if(useTempoD or useTempoL2):
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useVorticities = useVorticities, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(batch_size_disc, n_t = 3, dt=dt, useVelocities = useVelocities, useDataAugmentation=useDataAugmentation, adv_flag = ADV_flag)
 					train_dict[x_t] = batch_xts
 					if(ADV_flag):
 						train_dict[y_pos] = batch_y_pos
@@ -1464,7 +1440,7 @@ if not outputOnly and trainGAN:
 			if (iteration + 1) % valiInterval == 0:
 				if use_spatialdisc:
 					# gather statistics from training
-					batch_xs, batch_ys = getInput(batch_size = numValis, useVelocities = useVelocities, useVorticities = useVorticities)
+					batch_xs, batch_ys = getInput(batch_size = numValis, useVelocities = useVelocities)
 					disc_out, summary_disc_out, gen_out, summary_gen_out = sess.run([disc_sigmoid, outTrain_disc_real, gen_sigmoid, outTrain_disc_gen], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: False})
 					summary_writer.add_summary(summary_disc_out, iteration)
 					summary_writer.add_summary(summary_gen_out, iteration)
@@ -1473,7 +1449,7 @@ if not outputOnly and trainGAN:
 
 					# validation starts here...
 					# get vali data
-					batch_xs, batch_ys = getInput(batch_size = numValis, isTraining=False, useVelocities = useVelocities, useVorticities = useVorticities)
+					batch_xs, batch_ys = getInput(batch_size = numValis, isTraining=False, useVelocities = useVelocities)
 					#disc with real imput
 					disc_out_real, summary_vali_out, disc_vali_cost_real, summary_vali = sess.run([disc_sigmoid, outVali_disc_real, disc_loss_disc, lossVali_disc_disc], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropoutOutput, train: False})
 					summary_writer.add_summary(summary_vali, iteration)
@@ -1489,7 +1465,7 @@ if not outputOnly and trainGAN:
 				
 				if(useTempoD): # temporal logs
 					# T disc output with training data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, useVelocities = useVelocities, useVorticities = useVorticities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, useVelocities = useVelocities, n_t = 3, dt=dt, adv_flag = ADV_flag)
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
 						vali_dict[y_pos] = batch_y_pos
@@ -1502,7 +1478,7 @@ if not outputOnly and trainGAN:
 					avgOut_gen_t += t_gen_out
 
 					# validation data
-					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, useVelocities = useVelocities, useVorticities = useVorticities, n_t = 3, dt=dt, adv_flag = ADV_flag)
+					batch_xts, batch_yts, batch_y_pos = getTempoinput(numValis, isTraining=False, useVelocities = useVelocities, n_t = 3, dt=dt, adv_flag = ADV_flag)
 					# disc with real input
 					vali_dict = {x_t: batch_xts, y_t: batch_yts, keep_prob: dropout, train: False}
 					if(ADV_flag):
