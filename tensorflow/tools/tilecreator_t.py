@@ -48,12 +48,13 @@ seed( 42 )
 # default channel layouts
 C_LAYOUT = {
 	'dens':C_KEY_DEFAULT,
-	'dens_vel':'d,vx,vy,vz'
+	'dens_vel':'d,vx,vy,vz',
+	'vel':'vx,vy,vz'
 	}
 
 class TileCreator(object):
 
-	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['dens_vel'], channelLayout_high=C_LAYOUT['dens'], highIsLabel=False, loadPN=False, padding=0):
+	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['dens_vel'], channelLayout_high=C_LAYOUT['vel'], highIsLabel=False, loadPN=False, padding=0):
 		'''
 			tileSizeLow, simSizeLow: int, [int,int] if 2D, [int,int,int]
 			channelLayout: 'key,key,...'
@@ -118,7 +119,6 @@ class TileCreator(object):
 		if np.less(self.simSizeLow, self.tileSizeLow).any():
 			self.TCError('Tile size {} can not be larger than sim size {}, {}.'.format(self.tileSizeLow,self.simSizeLow))
 		
-		
 		if densityMinimum<0.:
 			self.TCError('densityMinimum can not be negative.')
 		self.densityMinimum = densityMinimum
@@ -171,10 +171,10 @@ class TileCreator(object):
 		self.hasPN = loadPN
 		self.padding=padding
 		
-		#if self.hasPN:
-		#[z,y,x, velocities an/or position if enabled (density,vel,vel,vel, pos, pos [,pos])]
+		# if self.hasPN:
+		# [z,y,x, velocities an/or position if enabled (density,vel,vel,vel, pos, pos [,pos])]
 		
-		#DATA SHAPES
+		# DATA SHAPES
 		self.tile_shape_low = np.append(self.tileSizeLow, [self.data_flags[DATA_KEY_LOW]['channels']])
 		self.frame_shape_low = np.append(self.simSizeLow, [self.data_flags[DATA_KEY_LOW]['channels']])
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:

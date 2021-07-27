@@ -281,8 +281,8 @@ def drawParticles(name):
 	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
 
 
+# read particle positions
 if outputOnly:
-	# read particles
 	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/particle_positions.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
@@ -344,12 +344,11 @@ keep_prob = tf.placeholder(tf.float32)
 
 print("x: {}".format(x.get_shape()))
 # --- main graph setup ---
-
-		# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
-		# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
-		# inRu3 = ru2
-		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
+# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+# inRu3 = ru2
+# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
+# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
 
 rbId = 0
 def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=False):
@@ -409,24 +408,26 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		inRu3 = ru2
 		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		ru4 = resBlock(gan, ru3, 2, 3,  reuse, False, 5)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
 
 ############################################discriminator network###############################################################
 def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None):
-	#in_low: low res reference input, same as generator input (condition)
-	#in_high: real or generated high res input to classify
-	#reuse: variable reuse
-	#use_batch_norm: bool, if true batch norm is used in all but the first con layers
-	#train: if use_batch_norm, tf bool placeholder
-	print("\n\tDiscriminator (conditional binary classifier)")
+	# in_low: low res reference input, same as generator input (condition)
+	# in_high: real or generated high res input to classify
+	# reuse: variable reuse
+	# use_batch_norm: bool, if true batch norm is used in all but the first con layers
+	# train: if use_batch_norm, tf bool placeholder
+	print("\n\t Discriminator (conditional binary classifier)")
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
 			shape = tf.shape(in_low)
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
-			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) #NHWC
+			# only for the density channel
+			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) # NHWC
 			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 1])
 			filter=[4,4]
 			stride = [2]
@@ -440,7 +441,7 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 			stride = [2,2]
 			stride2 = [2]
 
-		#merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
+		# merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
 		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) #64
 		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
 
@@ -1500,7 +1501,7 @@ if not outputOnly and trainGAN:
 					avgValiCost_disc_gen_t += t_disc_vali_cost_gen
 					avgValiOut_disc_gen_t += t_disc_out_gen
 					
-				#gen
+				# gen
 				train_dict = {x: batch_xs, x_disc: batch_xs, keep_prob: dropoutOutput, train: False}
 				if (useTempoD or useTempoL2):  # add tempo logs
 					train_dict[x_t] = batch_xts
