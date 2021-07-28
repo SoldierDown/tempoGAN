@@ -110,7 +110,7 @@ batch_norm		= int(ph.getParam( "batchNorm",	   True ))>0			# apply batch normali
 bn_decay		= float(ph.getParam( "bnDecay",	   0.999 ))				# decay of batch norm EMA
 use_spatialdisc = int(ph.getParam( "use_spatialdisc",		   True )) 	# use spatial discriminator or not
 
-useVelocities   = int(ph.getParam( "useVelocities",   0  )) 			# use velocities or not
+useDensity   	= int(ph.getParam( "useDensity",   0  )) 			# use density or not
 premadeTiles	= int(ph.getParam( "premadeTiles",   0  ))		 		# use pre-made tiles?
 
 useDataAugmentation = int(ph.getParam( "dataAugmentation", 0 ))		 	# use dataAugmentation or not
@@ -165,17 +165,17 @@ if not (dataDimension == 2 or dataDimension == 3):
 if toSim==-1:
 	toSim = fromSim
 
-channelLayout_low = 'd'
-lowfilename = "density_low_%04d.uni"
+channelLayout_low = 'vx,vy,vz'
+lowfilename = "velocity_low_%04d.uni"
 highfilename = "velocity_high_%04d.uni"
-mfl = ["density"]
+mfl = ["velocity"]
 mfh = ["velocity"]
 if outputOnly: 
 	highfilename = None
 	mfh = None
-if useVelocities:
-	channelLayout_low += ',vx,vy,vz'
-	mfl= np.append(mfl, "velocity")
+if useDensity:
+	channelLayout_low += ',d'
+	mfl= np.append(mfl, "density")
 
 dirIDs = np.linspace(fromSim, toSim, (toSim-fromSim+1),dtype='int16')
 
@@ -236,14 +236,18 @@ tf.set_random_seed(randSeed)
 # 2D: tileSize x tileSize tiles; 3D: tileSize x tileSize x tileSize chunks
 n_input  = tileSizeLow  ** 2
 n_output = tileSizeHigh ** 2
+n_outputChannels = 3
+
 if dataDimension == 3:
 	n_input  *= tileSizeLow
 	n_output *= (tileSizeLow*upRes)
-n_inputChannels = 1
+n_inputChannels = 3
 
-if useVelocities:
-	n_inputChannels += 3
+if useDensity:
+	n_inputChannels += 1
+
 n_input *= n_inputChannels
+n_output *= n_outputChannels
 
 # for advecting particles
 particle_pos = []
@@ -283,7 +287,7 @@ def drawParticles(name):
 
 # read particle positions
 if outputOnly:
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/training_data_vel_extra/output-2d-1000-64x64/particle_positions.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			pos = line.split(' ')
@@ -302,7 +306,7 @@ if outputOnly:
 		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-215-64x64/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/training_data_vel_extra/output-2d-1000-64x64/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -329,7 +333,7 @@ if not outputOnly:
 # input for gen
 x = tf.placeholder(tf.float32, shape=[None, n_input])
 # reference input for disc
-x_disc = tf.placeholder(tf.float32, shape=[None, n_input])
+x_disc = tf.placeholder(tf.float32, shape=[None, n_input]) # 1024 = 16x16x4
 # real input for disc
 y = tf.placeholder(tf.float32, shape=[None, n_output])
 print('n_input: {}'.format(n_input))
@@ -379,9 +383,9 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=
 
 def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
-	print("\n\t Generator (resize-resnett3-deep)")
+	print("\n\t Generator (resize-resnett3-deep) with {} channels".format(n_inputChannels))
+	input('')
 	with tf.variable_scope("generator", reuse=reuse) as scope:
-
 		if dataDimension == 2:
 			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) #NHWC
 			patchShape = [2,2]
@@ -403,13 +407,13 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		# 4x
 		gan.max_depool()
 		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2,n_inputChannels*8,  reuse, use_batch_norm,5)
-		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
+		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, 5)
+		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, 5)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
+		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, 5)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-		ru4 = resBlock(gan, ru3, 2, 3,  reuse, False, 5)
+		ru4 = resBlock(gan, ru3, 4, 3, reuse, False, 5)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
@@ -424,11 +428,20 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 	print("\n\t Discriminator (conditional binary classifier)")
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
-			shape = tf.shape(in_low)
-			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
-			# only for the density channel
-			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 1])).max_depool(height_factor = upRes,width_factor=upRes) # NHWC
-			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 1])
+			shape = tf.shape(in_low)					# 16, 16x16x4
+			# print('in_low: {}'.format(in_low.shape)) 	# 1024 = 16 x 16 x 4
+			# slice: [beginning indices] [output size]
+			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
+			in_low = tf.slice(in_low,[0,0],[shape[0],int(3*n_input/n_inputChannels)])
+			# in_low = tf.slice(in_low,[0,int(3*n_input/n_inputChannels)],[shape[0],int(n_input/n_inputChannels)])
+			# print('{},{} -> {},{}'.format(0, 3*n_input/n_inputChannels, shape[0], n_input/n_inputChannels))
+			# print('in_low: {}'.format(in_low.shape)) # 256 = 16 x 16 x 1
+			# print(shape[0])
+			# print(n_input)
+			# print(n_input/n_inputChannels)
+			# input('')
+			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, 3])).max_depool(height_factor = upRes,width_factor=upRes) # NHWC
+			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, 3])
 			filter=[4,4]
 			stride = [2]
 			stride2 = [2]
@@ -442,6 +455,9 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 			stride2 = [2]
 
 		# merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
+		print('in_low: {}'.format(in_low.shape))
+		print('in_high: {}'.format(in_high.shape))
+		input('')
 		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) #64
 		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
 
@@ -466,6 +482,7 @@ def disc_binclass_cond_tempo(in_high, n_t_channels=3, reuse=False, use_batch_nor
 	# train: if use_batch_norm, tf bool placeholder
 	print("\n\tDiscriminator for Tempo (conditional binary classifier)")
 	print("\n\tTempo, nearby frames packed as channels, number %d" % n_t_channels)
+	input('')
 	with tf.variable_scope("discriminatorTempo", reuse=reuse):
 		if dataDimension == 2:
 			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, n_t_channels])
@@ -561,7 +578,9 @@ train = tf.placeholder(tf.bool)
 if not outputOnly: #setup for training
 	gen_part = gen_model(x, use_batch_norm=bn, train=train)
 	if use_spatialdisc:
+		print('use spatialdisc')
 		disc, dy1, dy2, dy3, dy4 = disc_model(x_disc, y, use_batch_norm=bn, train=train)
+		print('1st done')
 		gen, gy1, gy2, gy3, gy4 = disc_model(x_disc, gen_part, reuse=True, use_batch_norm=bn, train=train)
 	if genValiImg > -1: sampler = gen_part
 else: #setup for generating output with trained model
@@ -905,17 +924,6 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		# move channels to first dim.
 		img_c = np.rollaxis(img, -1, 0)
 		grid = img
-		# print('img size: {}'.format(img_c.shape)) # 3 x 256 x256
-		# if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
-		# 	if plot_vel_x_y: saveVel(img, path, imageCounter+image)
-		# 	if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
-		# if len(channels) == 1:
-		# 	scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}.png'.format(imageCounter*noImages+image))
-		# else:
-		# 	for i in channels:
-		# 		scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
-	
-
 
 	dx = 1./simSizeHigh
 	inv_dx = simSizeHigh
@@ -929,11 +937,6 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	# exit()
 	# print('max vel: {}'.format(max_grid_v))
 
-	min_pv = 100000
-	max_pv = -100000
-	mean_pv = 0.
-	ss = 0.
-	cnt = 0
 	for idx, pos in enumerate(particle_pos):
 		pos2d = np.array([pos[0], pos[1]])
 		# print('##########################################')
@@ -973,26 +976,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 					# input('hanging')
 				# print('grid_vel: {}'.format(grid_vel))
 				vel += grid_vel*weight
-		particle_vel[idx][1] = vel
-		mean_pv += vel
-		if vel > max_pv:
-			max_pv = vel 
-		if vel < min_pv:
-			min_pv =vel
-		cnt += 1
-	if cnt == 0:
-		cnt = 1
-	mean_pv /= cnt
-	for idx in range(len(particle_vel)):
-		cur_v = particle_vel[idx][1]
-		ss += (cur_v - mean_pv)**2
-	if cnt == 1:
-		cnt = 2
-	ss /= (cnt - 1)
-	print('#####################################')
-	print('min vel: {}, max vel: {}'.format(min_pv, max_pv))
-	print('mean vel: {}, ss: {}'.format(mean_pv, ss))
-	print('#####################################')
+		particle_vel[idx] = np.array([vel[0], vel[1]])
 	# exit()
  
     # // P2G
@@ -1010,6 +994,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 
 #evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
+	return
 	if premadeTiles:
 		#todo output for premadetiles
 		pass
@@ -1072,14 +1057,14 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
-			imgSz = int((resultTiles.shape[1]/n_inputChannels)**(1.0/2) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_inputChannels])
+			imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_outputChannels])
 		else:
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
 		# TODO: uncomment
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		buildVelField(resultTiles, outPath,tiles_in_image=tiles_in_image)
+		buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image)
 		moveParticles(frame_no=frame_no)
 		drawParticles(str(frame_no + 1))
 		# savePngs(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
@@ -1338,7 +1323,8 @@ if not outputOnly and trainGAN:
 				for runs in range(discRuns):
 					batch_xs, batch_ys = getInput(batch_size = batch_size_disc, useDataAugmentation = useDataAugmentation)
 					# print('batch_size_disc: {}'.format(batch_size_disc)) # 16
-					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 256)
+					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 16x16x4)
+					# input('')
 					# print('batch_ys: {}:\n{}'.format(batch_ys.shape, batch_ys)) # (16, 4096)
 					_, disc_cost, summary, disc_sig, gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc, disc_sigmoid,gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
 					# print('disc_optimizer: {}'.format(disc_optimizer))
