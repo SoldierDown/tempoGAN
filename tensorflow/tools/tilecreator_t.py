@@ -16,6 +16,7 @@ import uniio
 import numpy as np
 import scipy.misc
 import scipy.ndimage 
+import matplotlib.pyplot as plt
 import imageio
 
 # check whether matplotlib is available to generate vector/quiver plots
@@ -48,13 +49,15 @@ seed( 42 )
 # default channel layouts
 C_LAYOUT = {
 	'dens':C_KEY_DEFAULT,
-	'dens_vel':'d,vx,vy,vz',
-	'vel':'vx,vy,vz'
+	'vel2d_dens':'vx,vy,d',
+	'vel3d_dens':'vx,vy,vz,d',
+	'vel2d':'vx,vy',
+	'vel3d':'vx,vy,vz'
 	}
 
 class TileCreator(object):
 
-	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['dens_vel'], channelLayout_high=C_LAYOUT['vel'], highIsLabel=False, loadPN=False, padding=0):
+	def __init__(self, tileSizeLow, simSizeLow=64, upres=2, dim=2, dim_t=1, overlapping=0, densityMinimum=0.02, premadeTiles=False, partTrain=0.8, partTest=0.2, partVal=0, channelLayout_low=C_LAYOUT['vel2d_dens'], channelLayout_high=C_LAYOUT['vel2d'], highIsLabel=False, loadPN=False, padding=0):
 		'''
 			tileSizeLow, simSizeLow: int, [int,int] if 2D, [int,int,int]
 			channelLayout: 'key,key,...'
@@ -307,7 +310,8 @@ class TileCreator(object):
 			self.TCError('Input must be single 3D data or sequence of 3D data. Format: ([batch,] z, y, x, channels). For 2D use z=1.')
 
 		if (low.shape[-1]!=(self.dim_t * self.data_flags[DATA_KEY_LOW]['channels'])):
-			self.TCError('Dim_t ({}) * Channels ({}, {}) configured for LOW-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_LOW]['channels'], self.c_low,  low.shape[-1]) )
+			print('Dim_t ({}) * Channels ({}, {}) configured for LOW-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_LOW]['channels'], self.c_low,  low.shape[-1]) )
+			exit()
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
 			if (high.shape[-1]!=(self.dim_t * self.data_flags[DATA_KEY_HIGH]['channels'])):
 				self.TCError('Dim_t ({}) * Channels ({}, {}) configured for HIGH-res data don\'t match channels ({}) of input data.'.format(self.dim_t, self.data_flags[DATA_KEY_HIGH]['channels'], self.c_high, high.shape[-1]) )
@@ -1020,6 +1024,72 @@ def savePngsBatch(low,high, TC, path, batchCounter=-1, save_vels=False, dscale=1
 
 
 # simpler function to output multiple tiles into grayscale pngs
+def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
+	'''
+		tiles_in_image: (y,x)
+		tiles: shape: (tile,y,x,c)
+	'''
+	tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+	if len(tiles)%tilesInImage!=0: 
+		print('ERROR: number of tiles does not match tiles per image')
+		return
+	tiles = np.asarray(tiles)
+	print('tiles: {}'.format(tiles.shape))
+	noImages = len(tiles)//tilesInImage # only 1 image
+	if save_gif:
+		gif=[]
+		
+	for image in range(noImages):
+		img = []
+		#combine tiles to image
+		for y in range(tiles_in_image[0]):
+			offset=image*tilesInImage + y*tiles_in_image[1]
+			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+		img = np.concatenate(img, axis=0) #combine y
+		if True:
+			tmp_grid = img.copy()
+			# ave: 0.7, 0.6, should be 0.6, 0.3
+			# 0.7 = 1 - 0.3
+			# 0.6 = 0.6
+			grid_shape = img.shape
+			for i in range(grid_shape[0]):
+				for j in range(grid_shape[1]):
+					grid_vel = img[i][j]
+					real_i = j
+					real_j = grid_shape[0] - i - 1
+					tmp_grid[real_i][real_j] = grid_vel
+			img = tmp_grid
+		img_shape = img.shape
+		img_w = img.shape[0]
+		img_h = img.shape[1]
+		img_dx = 1./ img_w
+
+		img_half_dx = .5 * img_dx
+		x = []
+		y = []
+		u = []
+		v = []
+		min_norm = 1e5
+		max_norm = -1e5
+		for i in range(img_w):
+			for j in range(img_h):
+				x.append(img_half_dx + i * img_dx)
+				y.append(img_half_dx + j * img_dx)
+				u.append(img[i][j][0])
+				v.append(img[i][j][1])
+				cur_norm = np.sqrt(img[i][j][0]**2+img[i][j][1]**2)
+				if cur_norm < min_norm:
+					min_norm = cur_norm
+				if cur_norm > max_norm:
+					max_norm = cur_norm
+		# print('min norm: {}, max norm: {}'.format(min_norm, max_norm))
+		plt.quiver(x,y,u,v, scale=1e2, units="xy")
+		plt.gca().set_aspect('equal', adjustable='box')
+		plt.savefig(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+		plt.clf()
+
+
+# simpler function to output multiple tiles into grayscale pngs
 def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
 	'''
 		tiles_in_image: (y,x)
@@ -1031,51 +1101,6 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 		return
 	tiles = np.asarray(tiles)
 	print('tiles: {}'.format(tiles.shape))
-	mean_v = 0.
-	pos_mean_v = 0.
-	cnt = 0
-	pos_cnt = 0
-	min_v = 10000.
-	max_v = -10000.
-	for id in range(tiles.shape[0]):
-		for row in range(tiles.shape[1]):
-			for col in range(tiles.shape[2]):
-				vel = tiles[id][row][col]
-				if vel > 2.:
-					pos_mean_v += vel
-					pos_cnt += 1
-				mean_v += vel
-				if vel > max_v:
-					max_v = vel
-				if vel < min_v:
-					min_v = vel
-				cnt += 1
-	if cnt == 0:
-		cnt = 1
-	if pos_cnt == 0:
-		pos_cnt = 1
-	mean_v = mean_v / cnt
-	pos_mean_v = pos_mean_v / pos_cnt
-	ss = 0.
-	pos_ss = 0.
-	for id in range(tiles.shape[0]):
-		for row in range(tiles.shape[1]):
-			for col in range(tiles.shape[2]):
-				vel = tiles[id][row][col]
-				ss += (vel - mean_v)**2
-				if vel > 2.: 
-					pos_ss += (vel - pos_mean_v)**2
-	if cnt == 1:
-		cnt = 2
-	if pos_cnt == 1:
-		pos_cnt = 2
-	ss /= (cnt - 1)
-	pos_ss /= (pos_cnt - 1)
-	print('############################')
-	print('min_v: {}, max_v: {}'.format(min_v, max_v))
-	print('mean_v: {}, s2: {}'.format(mean_v, ss))
-	print('pos_mean_v: {}, pos_s2: {}'.format(pos_mean_v, pos_ss))
-	print('############################')
 	noImages = len(tiles)//tilesInImage
 	if save_gif:
 		gif=[]
@@ -1087,14 +1112,12 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 			offset=image*tilesInImage + y*tiles_in_image[1]
 			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
 		img = np.concatenate(img, axis=0) #combine y
+		print('image shape: {}'.format(img.shape))
 		# move channels to first dim.
 		img_c = np.rollaxis(img, -1, 0)
 		if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
 			if plot_vel_x_y: saveVel(img, path, imageCounter+image)
 			if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)
-		# print('img_c shape: {}'.format(img_c.shape))
-		# print('imageCounter: {}, noImages: {}, image: {}'.format(imageCounter, noImages, image))
-		# input('hanging')
 		if len(channels) == 1:
 			scipy.misc.toimage(img_c[channels[0]], cmin=0.0, cmax=1.0).save(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
 		else:

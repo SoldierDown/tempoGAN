@@ -45,15 +45,24 @@ def RU_read_content(bytestream, header):
 		dimensions = [header['dimZ'], header['dimY'], header['dimX'], channels]
 	
 	data = data.reshape( *dimensions, order='C')
+	# data_shape = data.shape
+	# min_val = 1e5
+	# max_val = -1e5
+	# for i in range(data_shape[0]):
+	# 	for j in range(data_shape[1]):
+	# 		for k in range(data_shape[2]):
+	# 			for l in range(data_shape[3]):
+	# 				val = data[i][j][k][l]
+	# 				if val > max_val:
+	# 					max_val = val
+	# 				if val < min_val:
+	# 					min_val = val
+	# print('min: {}, max: {}'.format(min_val, max_val))
+	# input('')
 	# test here
 	# data = -5. * np.ones(dimensions)
 	# for val in data:
 	# 	print(val)
-	tmp_pos = data[np.nonzero(data >= 0.)]
-	tmp_neg = data[np.nonzero(data < 0.)]
-	tmp_in = tmp_pos[np.nonzero(tmp_pos>4.5)]
-	print('tmp_in: {}'.format(tmp_in))
-	print(len(tmp_in))
 	return data
 	# return data.reshape( *dimensions, order='C')
 

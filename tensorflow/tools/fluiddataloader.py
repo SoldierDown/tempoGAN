@@ -14,7 +14,7 @@
 import os, glob, re, math, threading 
 import numpy as np
 import scipy.ndimage 
-
+import matplotlib.pyplot as plt
 # necessary for loading uni files , could easily be disabled if necessary
 import uniio 
 # data type for new python arrays
@@ -31,7 +31,7 @@ class FluidDataLoader(object):
 	def __init__(self, print_info=1, base_path="../data/", simdirname="sim_%04d/", indices=[], 
 				filename=None, filename_index_min=0, filename_index_max=200, wildcard=None,
 				array_y=None, filename_y=None, func_y=None, data_fraction=1.,
-				shape=None, shape_y=None, collapse_z=False, shuffle_on_load=False,
+				shape=None, shape_y=None, collapse_z=True, shuffle_on_load=False,
 				multi_file_list=None, multi_file_list_y=None, multi_file_idxOff=None, multi_file_idxOff_y=None,
 				postproc_func=None, postproc_func_y=None,
 				np_load_string=None , np_load_string_y=None , oldNamingScheme=False):
@@ -88,11 +88,16 @@ class FluidDataLoader(object):
 		self.wildcard = wildcard
 
 		self.multi_file_list   = multi_file_list  
+		# print('low res multi_file_list: {}'.format(self.multi_file_list))
 		self.multi_file_list_y = multi_file_list_y
+		# print('low res multi_file_list_y: {}'.format(self.multi_file_list_y))
+		
 		self.multi_file_idxOff   = multi_file_idxOff  
+		# print('low multi file idxOff: {}'.format(self.multi_file_idxOff))
 		self.multi_file_idxOff_y = multi_file_idxOff_y
 		self.postproc_func   = postproc_func  
 		self.postproc_func_y = postproc_func_y
+		# input('')
 
 		# y data for labeling x
 		self.filename_y = filename_y
@@ -148,7 +153,7 @@ class FluidDataLoader(object):
 		# all initialized upon load:
 		self.x = None
 		self.y = None
-		self.xfn = None
+		self.xfn = None # input file names
 		self.have_y_npz = False # does y contain numpy array data? 
 
 		self.loadDirs()
@@ -172,6 +177,7 @@ class FluidDataLoader(object):
 		foundCnt = 0
 
 		if self.wildcard is not None:
+			# not this way
 			search_dir = os.path.join( self.base_path, (self.simdirname % sim_index) )
 			os.chdir(search_dir)
 			allFiles = [f for f in glob.glob("*") if os.path.isfile(f)] # list all files
@@ -218,37 +224,41 @@ class FluidDataLoader(object):
 				if self.func_y is not None:
 					print("NYI! test...")
 		else:
-			# "simple" index range 
+			# this way
+			# print('wildcard None')
+			# input('')
 			n  = max(1, int((self.filename_index_max-self.filename_index_min)*self.data_fraction))
+			# print('n: {}'.format(n))	# n = 24: number of files for training
 			tf = float(self.filename_index_max-self.filename_index_min)/n
+			# print('tf: {}'.format(tf)) 	# tf = 10: index gap between two training files
 			for t in range(0,n):
 				filelist_index = int(self.filename_index_min + t*tf) # full range
-
+				# print('current low res file index: {}'.format(filelist_index))
 				fn = self.getFilename(sim_index, self.filename, filelist_index)
+				# print('current low res file: {}'.format(fn))
 				self.xfn.append(fn)
 				foundCnt += 1
 
 				if self.filename_y is not None:
+					# this way
 					fny = self.getFilename(sim_index, self.filename_y, filelist_index)
+					# print('current high res file: {}'.format(fny))
 					self.yfn.append(fny)
 					self.have_y_npz = True # flag to indicate we have np arrays in y
 
 				if self.array_y is not None:
+					# not this way
 					if self.y is None:
 						self.y = []
 					self.y.append( self.array_y[list_index] )
 					labelstr = " with label " + format( self.array_y[list_index] )
 
 				if self.func_y is not None:
+					# not this way
 					print("NYI! test...")
 					if self.y is None:
 						self.y = []
 					self.y.append( self.func_y(list_index, sim_index, t, fn) )
-		if self.y is not None:
-			print("247: shape self.y: {}".format(self.y.shape))
-			print(self.y[np.nonzero(self.y>0.01)])
-			print(len(self.y[np.nonzero(self.y>0.01)]))
-			# input('hanging')
 		if self.print_info:
 			print("Found " +format(foundCnt) +" files from sim ID "+format(sim_index) + labelstr )
 
@@ -271,20 +281,23 @@ class FluidDataLoader(object):
 		""" Optional, and 2D only: remove Z entry from 3d vec fields
 		"""
 		if not self.collapse_z: 
-			# print('not collapse_z')
-			# input('hanging')
 			return x
 		if not self.getDim( x.shape )==2: 
-			# print('not getDim == 2')
-			# input('hanging')
 			return x
 		if not x.shape[3]==3: 
-			# print('shape[3] == 3')
-			# input('hanging')
 			return x  # only apply for pure velocity grids with 3 channels
 		x2d = np.zeros( (1,x.shape[1],x.shape[2],2), dtype=FDG_DTYPE )
 		x2d[:,:,:,0] = x[:,:,:,0] # only keep x,y
 		x2d[:,:,:,1] = x[:,:,:,1]
+
+		# x2d_shape = x2d.shape
+		# for dum in range(x2d_shape[0]):
+		# 	for i in range(x2d_shape[1]):
+		# 		for j in range(x2d_shape[2]):
+		# 			dp = x[dum][i][j]
+		# 			if dp[0] != 0 or dp[1] != 0 or dp[2] != 0:
+		# 				print('{},{},{} -> {},{}'.format(x[dum][i][j][0], x[dum][i][j][1], x[dum][i][j][2], x2d[dum][i][j][0], x2d[dum][i][j][1]))
+		# input('')
 		return x2d
 
 	def mogrifyFilenameIndex(self, fn, idxOffset):
@@ -312,6 +325,7 @@ class FluidDataLoader(object):
 		"""
 		if idxOffset!=0:
 			fn = self.mogrifyFilenameIndex(fn,idxOffset)
+			# print('real loaded file: {}'.format(fn))
 		if self.print_info>1:
 			print("Loading: "+fn+", "+lstr)
 		# detect file type
@@ -326,45 +340,54 @@ class FluidDataLoader(object):
 		return ar
 
 	def loadFiles(self):
-		print('loading files')
+		# print('loading files')
 		""" Load all NPZs from list.
 			Note, data always has to have shape ZYXc (3d) or YXc (2d), 
 			where c is channels (eg 3 for vels, 1 for scalar data).
 		""" 
 		n = len(self.xfn)
+		# print('number of low res files: {}'.format(n))
 		for t in range(n):
 			fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[0]
 			fx = self.loadSingleDatum(self.xfn[t], self.np_load_string , fof) 
-
+			if fx.shape[3] == 3:
+				# print('removing z component')
+				fx = self.removeZComponent(fx)
+			# print('fx: {}'.format(fx.shape))
+			# input('')
 			if self.multi_file_list is not None:
 				# concat multiple files...
 				basename = self.xfn[t]
+				# print('basename: {}'.format(basename))
 				if not basename.find(self.multi_file_list[0])>=0:
 					raise FluidDataLoaderError("Error, input filename '%s' doesnt contain given string '%s'"%(basename,self.multi_file_list[0]))
+				# print('multi file list: {}'.format(self.multi_file_list))
+				# print('multi file list length: {}'.format(len(self.multi_file_list)))
 				for i in range(1,len(self.multi_file_list)):
-					fnr = basename.replace(self.multi_file_list[0] , self.multi_file_list[i])
+					fnr = basename.replace(self.multi_file_list[0] , self.multi_file_list[i]) # density file name
 					fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[i]
 					_fx = self.loadSingleDatum(fnr, self.np_load_string , fof ) 
-					# print('_fx shape: {}'.format(_fx.shape))
+					if self.multi_file_list[i] == 'velocity' and _fx.shape[3] == 3:
+						# print('removing z component')
+						_fx = self.removeZComponent(_fx) # optional!
+					# print('loaded low res data shape: {}'.format(_fx.shape))
 					fx = np.append( fx, _fx , axis=len(fx.shape)-1 )
-					# print('fx shape: {}'.format(fx.shape))
-					# input('hanging')
-
+					# print('current low res total loaded data shape: {}'.format(fx.shape))
+			# input('')
 			# apply post-processing function (if given)
 			if self.postproc_func is not None:
+				# not this way
 				fx = self.postproc_func(fx, self)
 
 			# ... and the same again for y
 			if self.have_y_npz:
 				fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[0]
-				# print('multi_file_idxOff_y: {}'.format(self.multi_file_idxOff_y))
-				# print('yfn: {}'.format(self.yfn))
-				# print('fofy: {}'.format(fofy))
-				fy = self.loadSingleDatum(self.yfn[t], self.np_load_string_y , fofy ) 
-				# print("361: shape fy: {}".format(fy.shape))
-				# print(fy[np.nonzero(fy>0.01)])
-				# print(len(fy[np.nonzero(fy>0.01)]))
-				# input('hanging')
+				fy = self.loadSingleDatum(self.yfn[t], self.np_load_string_y, fofy)
+				if fy.shape[3] == 3:
+					# print('removing z component')
+					fy = self.removeZComponent(fy) # optional!
+				# print('fy: {}'.format(fy.shape))
+				# input('')
 				if self.multi_file_list_y is not None:
 					basename = self.yfn[t]
 					if not basename.find(self.multi_file_list_y[0])>=0:
@@ -373,17 +396,26 @@ class FluidDataLoader(object):
 						fnr = basename.replace(self.multi_file_list_y[0] , self.multi_file_list_y[i])
 						fofy = 0 if self.multi_file_idxOff_y is None else self.multi_file_idxOff_y[i]
 						_fy = self.loadSingleDatum(fnr, self.np_load_string_y , fofy ) 
+						if self.multi_file_list_y[i] == 'velocity' and _fy.shape[3] == 3:
+							# print('removing z component')
+							_fy = self.removeZComponent(_fy) # optional!
+						# print('loaded high res data shape: {}'.format(_fy.shape))
 						fy = np.append( fy, _fy , axis=len(fy.shape)-1 )
-
+						# print('current high res total loaded data shape: {}'.format(fy.shape))
+				# input('')
 				if self.postproc_func_y is not None:
 					fy = self.postproc_func_y(fy, self)
-			fx = self.removeZComponent(fx) # optional!
+			# fx = self.removeZComponent(fx) # optional!
 
 			# intialize x/y arrays upon first use
 			if self.x is None:
+				# this way
+				# print('x is None')
 				self.data_shape = fx.shape
 
 				if self.shape is None: # no target shape? use data res
+					# this way
+					# print('shape is None')
 					self.shape = fx.shape
 					self.do_zoom = False
 				else:
@@ -394,24 +426,26 @@ class FluidDataLoader(object):
 					#if self.collapse_z and self.dim==2: self.zoom_shape[ len(self.zoom_shape)-1 ] = 1. # old, dont zoom channels
 					if self.print_info: print("Zoom for x by "+format(self.zoom_shape) )
 
-				if self.print_info: print("Allocating x data for "+format(n)+" entries of size "+format(self.shape) )
+				if self.print_info: 
+					print("Allocating x data for "+format(n)+" entries of size "+format(self.shape) )
 				self.x = np.zeros( tuple([n]+list(self.shape)) , dtype=FDG_DTYPE )
 			# optional zoom, is initialized with original array
 			if self.do_zoom:
+				# not this way
 				fx = scipy.ndimage.zoom( fx, self.zoom_shape, order=1 ) 
 
 			# finally store t-th data sample
 			self.x[t,:]  = fx
 			# and again for y ...
 			if self.have_y_npz:
-				fy = self.removeZComponent(fy)
+				# fy = self.removeZComponent(fy)
 				# fy not change after removeZComponent
-
 				if self.y is None:
-					# print('none y')
+					# this way
+					# print('y None')
 					self.data_shape_y = fy.shape
 					if self.shape_y is None: # no target shape? use data res
-						# print('none shape y') # here
+						# this way
 						self.shape_y = fy.shape
 						self.do_zoom = False
 					else:
@@ -429,23 +463,16 @@ class FluidDataLoader(object):
 				# print(len(fy[np.nonzero(fy>0.01)]))
 				# input('hanging')
 				if self.do_zoom:
-					print('do zoom')
+					# print('do zoom')
 					fy = scipy.ndimage.zoom( fy, self.zoom_shape_y, order=1 ) 
-
 				self.y[t,:]  = fy
-				# print("428: shape self.y: {}".format(self.y.shape))
-				# print(self.y[np.nonzero(self.y>0.01)])
-				# print(len(self.y[np.nonzero(self.y>0.01)]))
-				# print(self.y[np.nonzero(self.y<=0.01)])
-				# print(len(self.y[np.nonzero(self.y<=0.01)]))
-				# input('hanging')
 			if self.print_info and t==0: print("loadFiles: data size x "+ format(self.x.shape) + ((", y " + format(self.y.shape)) if self.filename_y is not None else "") ) 
 		# x (and optionally y) arrays complete now, retrieve with get() later on
 
 
 
 	def loadDirs(self):
-		print('loading dirs')
+		# print('loading dirs')
 		""" Main load function: collect all files in multiple directories,
 			and load the necessary fraction; potentially rescale (zoom) data, if enabled
 		"""
@@ -453,8 +480,11 @@ class FluidDataLoader(object):
 		self.yfn = []
 		currDir = os.getcwd()
 
+		# print('indices: {}'.format(self.indices))
+		# input('')
 		for i in range(len(self.indices)):
-			self.collectFilenamesFromDir( i )
+			# print('loading from {}'.format(self.indices[i]))
+			self.collectFilenamesFromDir( i ) # collect low/high res files to xfn/yfn
 			os.chdir( currDir )
 			
 		# debug info, print full lists
@@ -468,25 +498,20 @@ class FluidDataLoader(object):
 		os.chdir( currDir )
 
 		# remove z axis of all 3D data fields for whole data vector
-		if self.collapse_z:
-			if self.getDim(self.x[0].shape)==2:
-				self.x = np.reshape( self.x, [self.x.shape[0], self.shape[1],self.shape[2],self.shape[3]] ) # remove z-axis for x
-			if self.have_y_npz and self.getDim(self.y[0].shape)==2:
-				self.y = np.reshape( self.y, [self.y.shape[0], self.shape_y[1],self.shape_y[2],self.shape_y[3]] )
-		# print("482: shape self.y: {}".format(self.y.shape))
-		# print(self.y[np.nonzero(self.y>0.01)])
-		# print(len(self.y[np.nonzero(self.y>0.01)]))
-		# input('hanging')
-		# do manual shuffling once (needs to reorder x,y and filenames for x,y)
+		# if self.collapse_z:
+		# 	if self.getDim(self.x[0].shape)==2:
+		# 		print('==2 1')
+		# 		self.x = np.reshape( self.x, [self.x.shape[0], self.shape[1],self.shape[2],self.shape[3]] ) # remove z-axis for x
+		# 	if self.have_y_npz and self.getDim(self.y[0].shape)==2:
+		# 		print('==2 2')
+		# 		self.y = np.reshape( self.y, [self.y.shape[0], self.shape_y[1],self.shape_y[2],self.shape_y[3]] )
+		# 	print('collapse z')
+		# 	input('')
 		if self.shuffle_on_load:
 			idxr = np.random.permutation(self.x.shape[0])
 			self.x = self.x[idxr]
 			if self.have_y_npz:
 				self.y = self.y[idxr] # y is np array , reorder...
-			print("490: shape self.y: {}".format(self.y.shape))
-			print(self.y[np.nonzero(self.y>0.01)])
-			print(len(self.y[np.nonzero(self.y>0.01)]))
-			# input('hanging')
 			xfn2,yfn2,y2 = [],[],[]
 			for i in range(len(self.xfn)):
 				xfn2.append( self.xfn[idxr[i]] )
@@ -497,10 +522,6 @@ class FluidDataLoader(object):
 			self.xfn, self.yfn = xfn2,yfn2
 			if not self.have_y_npz and self.y is not None: 
 				self.y = y2
-			print("506: shape self.y: {}".format(self.y.shape))
-			print(self.y[np.nonzero(self.y>0.01)])
-			print(len(self.y[np.nonzero(self.y>0.01)]))
-			# input('hanging')
 		# loading done
 
 
