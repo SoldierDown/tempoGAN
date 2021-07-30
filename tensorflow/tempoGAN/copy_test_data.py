@@ -6,7 +6,7 @@ start_dest_folder = 6666
 n_sims = 1
 
 command_pre = 'cp /nfs/hsu/repo/MPM/mpm/output-2d-'
-command_mid = '-256x256/training_data_downsampled/* ../2ddata_sim/sim_'
+command_mid = '-64x64/training_data_coarse_fine/* ../2ddata_sim/sim_'
 command_post = '/'
 
 for sim in range(n_sims):

@@ -137,9 +137,13 @@ saveMD          = int(ph.getParam( "saveMetaData", 0 ))      # profiling, add me
 overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifile output, overlap of voxels
 
 # extras 
-collapse_z		= int(ph.getParam( "collapse_z",		   	True )) 
-vis_threshold	= float(ph.getParam( "visThreshold",		50000 ))
-draw_particles	= int(ph.getParam( "drawParticles",   	  True ))>0 		
+collapse_z			= int(ph.getParam( "collapse_z",		   	True )) 
+vis_threshold		= float(ph.getParam( "visThreshold",		50000 ))
+draw_particles		= int(ph.getParam( "drawParticles",   	  True ))>0 		
+move_particles_only	= int(ph.getParam( "moveOnly",   	  		True ))>0 		
+
+if move_particles_only:
+	useDensity = False
 
 ph.checkUnusedParams()
 
@@ -188,6 +192,10 @@ if (outputOnly):
 	useTempoD = False
 	useTempoL2 = False
 	useDataAugmentation = 0
+	if move_particles_only:
+		simSizeLow = 256
+		simSizeHigh = 256
+		tileSizeLow = 64
 
 if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim = dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
@@ -816,12 +824,13 @@ config = tf.ConfigProto(allow_soft_placement=True)
 sess = tf.InteractiveSession(config = config)
 saver = tf.train.Saver(max_to_keep=maxToKeep)
 
+if not move_particles_only:
 # init vars or load model
-if load_model_test == -1:
-	sess.run(tf.global_variables_initializer())
-else:
-	saver.restore(sess, load_path)
-	print("Model restored from %s." % load_path)
+	if load_model_test == -1:
+		sess.run(tf.global_variables_initializer())
+	else:
+		saver.restore(sess, load_path)
+		print("Model restored from %s." % load_path)
 
 if not outputOnly:
 	# create a summary to monitor cost tensor
@@ -988,7 +997,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	# input('')
 	dx = 1./simSizeHigh
 	inv_dx = simSizeHigh
-
+	print('dx: {}, dx_inv: {}'.format(dx, inv_dx))
 	for idx, pos in enumerate(particle_pos):
 		pos2d = np.array([pos[0], pos[1]])
 		# print('##########################################')
@@ -997,10 +1006,12 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		# dx = 1/256
 		# print(pos2d) # checked correct
 		
-		number_of_ghost_cells_plus_one = 1
-		closest_cell=np.int16(pos2d * inv_dx+number_of_ghost_cells_plus_one)
+		number_of_ghost_cells_plus_one = np.array([1,1])
+		closest_cell=np.int16(pos2d // dx)
+		# print('particle pos: {}, closest cell: {}, dx: {}'.format(pos2d, closest_cell, dx))
+		# input('')
 		# print('closest cell: {}'.format(closest_cell))
-		closest_cell_position = (np.float32(closest_cell) - np.array([1., 1.])) * dx + .5 * np.array([dx, dx])
+		closest_cell_position = (np.float32(closest_cell)) * dx + .5 * np.array([dx, dx])
 		X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
 		w = np.array([	[0., 0.],
 						[0., 0.],
@@ -1017,19 +1028,29 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		vel = 0.
 		sum_weight = 0.
 		vel_threshold = 1
-		for i in range(3):
-			for j in range(3):
-				weight = w[i][0] * w[j][1]
+		for i in range(-1, 2):
+			for j in range(-1, 2):
+				weight = w[i+1][0] * w[j+1][1]
 				sum_weight += weight
 				cur_cell = closest_cell + np.array([i, j])
-				ci, cj = cur_cell[0], cur_cell[1]
+				ci, cj = cur_cell[0] , cur_cell[1] 
 				grid_vel = grid[ci][cj]
+				# if abs(grid_vel[1]>-2.):
+				# 	print('pid: {}, pos: {}'.format(idx, pos2d))
+				# 	print('{}, {}: grid_vel: {}'.format(ci, cj, grid_vel))
+				# 	print('closest cell: {}'.format(closest_cell))
+					# input('')
 				# grid_vel = grid[cj][ci]
 				# if grid_vel[0] > vel_threshold or grid_vel[1] > vel_threshold : # around .5, .25
 				# 	print('{},{}: {}'.format(ci, cj, grid_vel))
 					# input('hanging')
-				# print('grid_vel: {}'.format(grid_vel))
+				# if grid_vel[1] > -2.0:
+				# 	print('particle pos: {}, grid idx: {},{}, grid vel: {}'.format(pos2d, ci, cj, grid_vel))
+				# 	input('')
 				vel += grid_vel*weight
+		if abs(sum_weight - 1.0) > 1e-5:
+			print('s_weight: {}'.format(sum_weight))
+			input('')
 		# input('')
 		particle_vel[idx] = np.array([vel[0], vel[1]])
 	# exit()
@@ -1074,7 +1095,6 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		else:
 			batch_xs = inputx[frame_no]
 		resultTiles = []
-
 		print('batch_xs shape: {}'.format(batch_xs.shape))
 		if True:
 			grid_shape = batch_xs.shape
@@ -1105,31 +1125,36 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		# 	batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 		# 	results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
 		# 	resultTiles.extend(results)
-		for tileno in range(1):
-			# channels: 2/3
-			# ts: 16, tn: 4
-			# n_input = ts x ts x channels
-			# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
-			# batch_xs_in = (tn * tn, n_input)
-			print('batch_xs: {}'.format(batch_xs.shape))
-			print('n_input: {}'.format(n_input))
-			# input('hanging')
-			batch_xs_in = np.reshape(batch_xs, [-1, n_input])
-			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
-			resultTiles.extend(results)
-		resultTiles = np.array(resultTiles)
-		if dataDimension == 2: # resultTiles may have a different size
-			imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_outputChannels])
+		if not move_particles_only:
+			for tileno in range(1):
+				# channels: 2/3
+				# ts: 16, tn: 4
+				# n_input = ts x ts x channels
+				# batch_xs = (tn x ts, tn x ts, channels); prod(batch_xs) = n_input * tn * tn 
+				# batch_xs_in = (tn * tn, n_input)
+				print('batch_xs: {}'.format(batch_xs.shape))
+				print('n_input: {}'.format(n_input))
+				# input('hanging')
+				batch_xs_in = np.reshape(batch_xs, [-1, n_input])
+				results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+				resultTiles.extend(results)
+			resultTiles = np.array(resultTiles)
+			if dataDimension == 2: # resultTiles may have a different size
+				imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
+				resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_outputChannels])
+			else:
+				imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
+				resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+			print('result size: {}'.format(resultTiles.shape))
+			# TODO: uncomment
+			tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
+			buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image)
+			moveParticles(frame_no=frame_no)
+			drawParticles(str(frame_no + 1))
 		else:
-			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
-		# TODO: uncomment
-		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image)
-		moveParticles(frame_no=frame_no)
-		drawParticles(str(frame_no + 1))
-
+			buildVelField(batch_xs, outPath)
+			moveParticles(frame_no=frame_no)
+			drawParticles(str(frame_no + 1))
 
 def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if dataDimension == 2:
@@ -1703,7 +1728,8 @@ elif outputOnly:
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:
-			generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
+			if not move_particles_only:
+				generateValiImage(fromSim, layerno, outPath = test_path, imageindex = layerno)
 			if draw_particles:
 				generateValiVel(fromSim, layerno, outPath = test_path, imageindex = layerno)
 		else:
