@@ -152,6 +152,9 @@ useTempoL2 = False
 
 use_spatialdisc = True
 
+minScale = 1.
+maxScale = 1.
+
 if(kt > 1e-6):
 	useTempoD = True
 if(kt_l > 1e-6):
@@ -917,22 +920,16 @@ def addVorticity(Vel):
 	return vorout
 
 def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False):
-	input('getInput')
 	if randomtile == False:
-		print('use randomtile')
-		input('')
+		# this way
 		batch_xs, batch_ys = tiCr.getFrameTiles(index) 
 	else:
-		print('not use randomtile')
-		input('')
 		batch_xs, batch_ys = tiCr.selectRandomTiles(selectionSize = batch_size, augment=useDataAugmentation)	
 	batch_xs = np.reshape(batch_xs, (-1, n_input))
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
 
 def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, n_t = 3, dt=1.0, adv_flag = 1.0):
-	print('getTempoinput')
-	input('')
 	batch_xts, batch_yts, batch_y_pos = tiCr.selectRandomTempoTiles(batch_size, isTraining, useDataAugmentation, n_t, dt, adv_flag)
 	return batch_xts, batch_yts, batch_y_pos
 
@@ -1477,6 +1474,7 @@ if not outputOnly and trainGAN:
 		avgValiCost_gen_t_l = 0
 		
 		for iteration in range(trainingIters):
+			print('iteration {}/{}: {}'.format(iteration, trainingIters, np.float32(iteration*100.)/trainingIters))
 			lrgs = max(0, iteration-(trainingIters//2)) # LR counter, start decay at half time... (if enabled) 
 			run_options = None; run_metadata = None
 			if saveMD:

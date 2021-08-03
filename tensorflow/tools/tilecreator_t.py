@@ -291,8 +291,7 @@ class TileCreator(object):
 		print(msg)
 		self.interpolation_order = 1
 		self.fill_mode = 'constant'
-		print('end aug init')
-		input('')	
+		# input('')	
 	
 	
 	def addData(self, low, high):
@@ -367,7 +366,7 @@ class TileCreator(object):
 		print('Training set: {}'.format(self.setBorders[0]))
 		print('Testing set:  {}'.format(self.setBorders[1]-self.setBorders[0]))
 		print('Validation set:  {}'.format(self.setBorders[2]-self.setBorders[1]))
-		input('')
+		# input('')
 
 	def clearData(self):
 		'''
@@ -477,16 +476,17 @@ class TileCreator(object):
 				if self.do_rotation: # or self.do_scaling:
 					factor*=1.5 # scaling: to avoid size errors caused by rounding
 				if self.do_scaling:
+					print('should not show up')
 					scaleFactor = np.random.uniform(self.scaleFactor[0], self.scaleFactor[1])
 					factor/= scaleFactor 
-					print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
+					# print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
 				tileShapeLow = np.ceil(self.tile_shape_low*factor)
-				print('self.tile_shape_low: {}'.format(self.tile_shape_low))
-				print('tileShapeLow: {}'.format(tileShapeLow))
+				# print('self.tile_shape_low: {}'.format(self.tile_shape_low))
+				# print('tileShapeLow: {}'.format(tileShapeLow))
 				if self.dim==2:
 					tileShapeLow[0] = 1
 				data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomTile(data[DATA_KEY_LOW], data[DATA_KEY_HIGH], tileShapeLow.astype(int))
-				input('')
+				# input('')
 		
 			#random scaling, changes resolution
 			if self.do_scaling:
@@ -503,6 +503,8 @@ class TileCreator(object):
 			data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomTile(data[DATA_KEY_LOW], data[DATA_KEY_HIGH], bounds=bounds) #includes "shifting"
 		
 		if self.do_rot90:
+			print('should not show up')
+			input('')
 			rot = np.random.choice(self.cube_rot[self.dim])
 			for axis in rot:
 				data = self.rotate90(data, axis)
@@ -518,6 +520,11 @@ class TileCreator(object):
 		target_shape_high = np.copy(self.tile_shape_high)
 		target_shape_low[-1] *= tile_t
 		target_shape_high[-1] *= tile_t
+
+		# print('-1: {}'.format(target_shape_low))
+		# print('-1: {}'.format(target_shape_high))
+		# print(data[DATA_KEY_HIGH].shape)
+		# input('')
 		
 		if not np.array_equal(data[DATA_KEY_LOW].shape,target_shape_low) or (not np.array_equal(data[DATA_KEY_HIGH].shape,target_shape_high) and not self.data_flags[DATA_KEY_HIGH]['isLabel']):
 			self.TCError('Wrong tile shape after data augmentation. is: {},{}. goal: {},{}.'.format(data[DATA_KEY_LOW].shape, data[DATA_KEY_HIGH].shape, target_shape_low, target_shape_high))
@@ -573,6 +580,9 @@ class TileCreator(object):
 
 		start = np.ceil(bounds)
 		end = frameShapeLow - tileShapeLow + np.ones(4) - start
+
+		# print('start: {}'.format(start))
+		# print('end: {}'.format(end))
 		
 		offset_up = np.array([self.upres, self.upres, self.upres])
 		
@@ -597,7 +607,8 @@ class TileCreator(object):
 				highTile = self.cutTile(high, tileShapeHigh, offset)
 			else:
 				highTile = high
-			hasMinDensity = self.hasMinDensity(lowTile)
+			# hasMinDensity = self.hasMinDensity(lowTile)
+			hasMinDensity = True
 			i+=1
 		return lowTile, highTile
 
@@ -778,9 +789,9 @@ class TileCreator(object):
 		if len(data[DATA_KEY_LOW].shape)==5: #frame sequence
 			scale = np.append([1],scale)
 			
-		#apply transform
-		#low = self.applyTransform(low, zoom_matrix)
-		#high = self.applyTransform(high, zoom_matrix)
+		# apply transform
+		# low = self.applyTransform(low, zoom_matrix)
+		# high = self.applyTransform(high, zoom_matrix)
 		
 		#changes the size of the frame. should work well with getRandomTile(), no bounds needed
 		for data_key in data:
