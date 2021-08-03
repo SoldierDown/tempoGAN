@@ -291,7 +291,8 @@ class TileCreator(object):
 		print(msg)
 		self.interpolation_order = 1
 		self.fill_mode = 'constant'
-		
+		print('end aug init')
+		input('')	
 	
 	
 	def addData(self, low, high):
@@ -366,7 +367,8 @@ class TileCreator(object):
 		print('Training set: {}'.format(self.setBorders[0]))
 		print('Testing set:  {}'.format(self.setBorders[1]-self.setBorders[0]))
 		print('Validation set:  {}'.format(self.setBorders[2]-self.setBorders[1]))
-		
+		input('')
+
 	def clearData(self):
 		'''
 			clears the data buffer
@@ -448,6 +450,7 @@ class TileCreator(object):
 		batch_high = []
 		for i in range(selectionSize):
 			if augment and self.useDataAug: #data augmentation
+				# this way
 				low, high = self.generateTile(isTraining, tile_t)
 			else: #cut random tile without augmentation
 				low, high = self.getRandomDatum(isTraining, tile_t)
@@ -464,10 +467,11 @@ class TileCreator(object):
 		'''
 		# get a frame, is a copy to avoid transormations affecting the raw dataset
 		data = {}
+		# DATA_KEY_LOW: 0, DATA_KEY_HIGH: 1
 		data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomDatum(isTraining, tile_t)
-		
+
 		if not self.premadeTiles:
-			#cut a tile for faster transformation
+			# cut a tile for faster transformation
 			if self.do_scaling or self.do_rotation:
 				factor = 1
 				if self.do_rotation: # or self.do_scaling:
@@ -475,16 +479,18 @@ class TileCreator(object):
 				if self.do_scaling:
 					scaleFactor = np.random.uniform(self.scaleFactor[0], self.scaleFactor[1])
 					factor/= scaleFactor 
+					print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
 				tileShapeLow = np.ceil(self.tile_shape_low*factor)
+				print('self.tile_shape_low: {}'.format(self.tile_shape_low))
+				print('tileShapeLow: {}'.format(tileShapeLow))
 				if self.dim==2:
 					tileShapeLow[0] = 1
 				data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomTile(data[DATA_KEY_LOW], data[DATA_KEY_HIGH], tileShapeLow.astype(int))
-		
+				input('')
 		
 			#random scaling, changes resolution
 			if self.do_scaling:
 				data = self.scale(data, scaleFactor)
-		
 		
 			bounds = np.zeros(4)
 		
@@ -501,7 +507,7 @@ class TileCreator(object):
 			for axis in rot:
 				data = self.rotate90(data, axis)
 			
-		#flip once
+		# flip once
 		if self.do_flip:
 			axis = np.random.choice(4)
 			if axis < 3: # axis < self.dim

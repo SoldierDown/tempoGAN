@@ -1,8 +1,8 @@
 import os
 
 
-start_sim_no = 1000
-start_dest_folder = 6666
+start_sim_no = 1001
+start_dest_folder = 7777
 n_sims = 1
 
 command_pre = 'cp /nfs/hsu/repo/MPM/mpm/output-2d-'

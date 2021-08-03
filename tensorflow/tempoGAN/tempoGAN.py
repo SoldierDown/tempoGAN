@@ -149,6 +149,9 @@ ph.checkUnusedParams()
 
 useTempoD = False
 useTempoL2 = False
+
+use_spatialdisc = True
+
 if(kt > 1e-6):
 	useTempoD = True
 if(kt_l > 1e-6):
@@ -193,6 +196,7 @@ if (outputOnly):
 	useTempoL2 = False
 	useDataAugmentation = 0
 	if move_particles_only:
+		lowfilename = "velocity_high_%04d.uni"
 		simSizeLow = 256
 		simSizeHigh = 256
 		tileSizeLow = 64
@@ -320,7 +324,7 @@ def drawParticles(name):
 
 # read particle positions
 if outputOnly:
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1018-256x256/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/every_substep/output-2d-1002-256x256/particle_positions.txt') as f:
 		ave_pos = np.zeros(2)
 		cnt = 0
 		lines = [line.rstrip() for line in f]
@@ -337,14 +341,14 @@ if outputOnly:
 			ave_pos += np.array(cur_pos)
 			cnt += 1
 			particle_pos.append(cur_pos)
-			particle_vel.append(np.array([0., 0.]))
+			particle_vel.append(np.array([3.17415e-08, -2.66179]))
 	print('ave_pos: {}'.format(ave_pos/cnt))
 	# input('')
 	if draw_particles:
 		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1018-256x256/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/every_substep/output-2d-1002-256x256/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -688,11 +692,11 @@ if not outputOnly:
 		gen_loss = tf.zeros([1])
 		disc_loss_layer = tf.zeros([1])
 
-	#additional generator losses
+	# additional generator losses
 	gen_l2_loss = tf.nn.l2_loss(y - gen_part)
-	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) #use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
+	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) # use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
 
-	#uses sigmoid cross entropy and l1 - see cGAN paper
+	# uses sigmoid cross entropy and l1 - see cGAN paper
 	gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
 	print(gen_loss)
 	print(disc_loss_layer)
@@ -913,15 +917,22 @@ def addVorticity(Vel):
 	return vorout
 
 def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False):
+	input('getInput')
 	if randomtile == False:
+		print('use randomtile')
+		input('')
 		batch_xs, batch_ys = tiCr.getFrameTiles(index) 
 	else:
+		print('not use randomtile')
+		input('')
 		batch_xs, batch_ys = tiCr.selectRandomTiles(selectionSize = batch_size, augment=useDataAugmentation)	
 	batch_xs = np.reshape(batch_xs, (-1, n_input))
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
 	return batch_xs, batch_ys
 
 def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False, n_t = 3, dt=1.0, adv_flag = 1.0):
+	print('getTempoinput')
+	input('')
 	batch_xts, batch_yts, batch_y_pos = tiCr.selectRandomTempoTiles(batch_size, isTraining, useDataAugmentation, n_t, dt, adv_flag)
 	return batch_xts, batch_yts, batch_y_pos
 
@@ -955,6 +966,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	tiles = np.asarray(tiles)
 	noImages = len(tiles)//tilesInImage
 	print('noImages: {}, len(tiles): {}, tilesInImage: {}'.format(noImages, len(tiles), tilesInImage))
+	# input('')
 	grid = []
 	for image in range(noImages):
 		img = []
@@ -966,6 +978,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		# move channels to first dim.
 		img_c = np.rollaxis(img, -1, 0)
 		grid = img
+	
 	if True:
 		tmp_grid = img.copy()
 		# ave: 0.7, 0.6, should be 0.6, 0.3
@@ -979,7 +992,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 				real_j = grid_shape[0] - i - 1
 				tmp_grid[real_i][real_j] = grid_vel
 		grid = tmp_grid
-		vel_threshold = 1
+		vel_threshold = 2
 		ave_i = 0
 		ave_j = 0
 		ave_cnt = 0
@@ -987,8 +1000,8 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 			for j in range(grid_shape[1]):
 				grid_vel = grid[i][j]
 				if abs(grid_vel[0]) > vel_threshold or abs(grid_vel[1]) > vel_threshold : # around .5, .7, should be 0.7, 0.5
-					ave_i += i
-					ave_j += j
+					ave_i += i + 1
+					ave_j += j + 1
 					ave_cnt += 1
 					# print('{},{}: {}'.format(i, j, grid_vel))
 		print('generated ave: {},{}'.format(np.float32(ave_i)/(grid_shape[0]*ave_cnt),np.float32(ave_j)/(grid_shape[1]*ave_cnt)))
@@ -998,14 +1011,81 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	dx = 1./simSizeHigh
 	inv_dx = simSizeHigh
 	print('dx: {}, dx_inv: {}'.format(dx, inv_dx))
+
+	min_vx = 1e5 
+	max_vx = -1e5
+	min_vy = 1e5
+	max_vy = -1e5
+	for i in range(img.shape[0]):
+		for j in range(img.shape[1]):
+			vx = img[i][j][0]
+			vy = img[i][j][1]
+			if vx > max_vx:
+				max_vx = vx
+			if vx < min_vx:
+				min_vx = vx
+			if vy > max_vy:
+				max_vy = vy
+			if vy < min_vy:
+				min_vy = vy
+	
+	print('vel range: {},{} and {},{}'.format(min_vx, min_vy, max_vx, max_vy))
+	# input('')
+
+	mass_grid = img.copy()
+	flag_grid = img.copy()
+	prevel_grid = img.copy()
+	grid_shape = mass_grid.shape
+	for i in range(grid_shape[0]):
+		for j in range(grid_shape[1]):
+			mass_grid[i][j][0]=0.
+			flag_grid[i][j][0]=-1.
+			prevel_grid[i][j][0]=0.
+			prevel_grid[i][j][1]=0.
+
+	# print('{} {}'.format(np.int16(1.3), np.int16(1.7)))
+	# exit()
+	# rasterize
 	for idx, pos in enumerate(particle_pos):
 		pos2d = np.array([pos[0], pos[1]])
+		closest_cell=np.int16(pos2d // dx)
+		closest_cell_position = (np.float32(closest_cell)) * dx + .5 * np.array([dx, dx])
+		X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
+		w = np.array([	[0., 0.],
+						[0., 0.],
+						[0., 0.]])
+		for axis in range(2):
+			x = X_eval[axis] * inv_dx
+			w[0][axis] = abs(.5*x*x - 1.5*x + 1.125)
+			x -= 1
+			w[1][axis] = abs(-x*x+.75)
+			x -= 1
+			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
 		# print('##########################################')
-		# print('pos2d: {}'.format(pos2d))
-
-		# dx = 1/256
-		# print(pos2d) # checked correct
-		
+		sum_weight = 0.
+		vel_threshold = 1
+		p_vel = particle_vel[idx]
+		for i in range(-1, 2):
+			for j in range(-1, 2):
+				weight = w[i+1][0] * w[j+1][1]
+				cur_cell = closest_cell + np.array([i, j])
+				ci, cj = cur_cell[0] , cur_cell[1]
+				mass_grid[ci][cj][0] += weight
+				prevel_grid[ci][cj][0] += weight * p_vel[0]
+				prevel_grid[ci][cj][1] += weight * p_vel[1]
+	# normalization
+	for i in range(grid_shape[0]):
+		for j in range(grid_shape[1]):
+			cur_mass = mass_grid[i][j][0]
+			if cur_mass > 0.:
+				prevel_grid[i][j][0] /= cur_mass
+				prevel_grid[i][j][1] /= cur_mass
+				flag_grid[i][j][0] = 1.
+				# print('prev vel: {}'.format(prevel_grid[i][j]))
+	# input('') # looks good
+	
+	for idx, pos in enumerate(particle_pos):
+		pos2d = np.array([pos[0], pos[1]])
 		number_of_ghost_cells_plus_one = np.array([1,1])
 		closest_cell=np.int16(pos2d // dx)
 		# print('particle pos: {}, closest cell: {}, dx: {}'.format(pos2d, closest_cell, dx))
@@ -1025,7 +1105,13 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 			w[2][axis] = abs(.5*x*x + 1.5*x + 1.125)
 		# print('##########################################')
 		# suppose 0.5, 0.25 ~ 128, 64
-		vel = 0.
+		p_vel = particle_vel[idx]
+		pic_vel = np.array([0., 0.])
+		flip_vel = np.array([p_vel[0], p_vel[1]])
+		# print('cur vel: {}, init pic_vel: {}, init flip_vel: {}'.format(p_vel, pic_vel, flip_vel))
+		# input('')
+		flip = .95
+		# vel = 0.
 		sum_weight = 0.
 		vel_threshold = 1
 		for i in range(-1, 2):
@@ -1034,26 +1120,23 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 				sum_weight += weight
 				cur_cell = closest_cell + np.array([i, j])
 				ci, cj = cur_cell[0] , cur_cell[1] 
-				grid_vel = grid[ci][cj]
-				# if abs(grid_vel[1]>-2.):
-				# 	print('pid: {}, pos: {}'.format(idx, pos2d))
-				# 	print('{}, {}: grid_vel: {}'.format(ci, cj, grid_vel))
-				# 	print('closest cell: {}'.format(closest_cell))
-					# input('')
-				# grid_vel = grid[cj][ci]
-				# if grid_vel[0] > vel_threshold or grid_vel[1] > vel_threshold : # around .5, .25
-				# 	print('{},{}: {}'.format(ci, cj, grid_vel))
-					# input('hanging')
-				# if grid_vel[1] > -2.0:
-				# 	print('particle pos: {}, grid idx: {},{}, grid vel: {}'.format(pos2d, ci, cj, grid_vel))
-				# 	input('')
-				vel += grid_vel*weight
-		if abs(sum_weight - 1.0) > 1e-5:
-			print('s_weight: {}'.format(sum_weight))
-			input('')
-		# input('')
-		particle_vel[idx] = np.array([vel[0], vel[1]])
-	# exit()
+				if flag_grid[ci][cj][0] < 0.:
+					print('error')
+					input('pre_vel: {}'.format(prevel_grid[ci][cj] ))
+				# print('center cell: {}, current cell: {}'.format(closest_cell, cur_cell))
+				grid_vel = np.array(grid[ci][cj])
+				grid_vel_prev = np.array(prevel_grid[ci][cj])
+				# print('{}'.format(pic_vel))
+				pic_vel += weight * grid_vel
+				flip_vel += weight * (np.array(grid_vel) - np.array(grid_vel_prev))
+				# print('{}.{}: {} and {}, weight: {}'.format(ci, cj, grid_vel, grid_vel_prev, weight))
+				# print('flip:  {} - {} = {} -> {}'.format(grid_vel, grid_vel_prev, grid_vel - grid_vel_prev, flip_vel))
+				# input('')
+		# print('{}: pic_vel: {}, flip_vel: {}'.format(closest_cell/grid_shape[0], pic_vel, flip_vel))
+		particle_vel[idx] = flip * flip_vel + (1. - flip) * pic_vel
+		# print('{} = {} * {} + {} * {}'.format(particle_vel[idx], flip, flip_vel, (1.-flip), pic_vel))
+		# particle_vel[idx] = np.array([vel[0], vel[1]])
+	# input('')
 
 #evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path, imageindex = 0):
@@ -1098,7 +1181,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 		print('batch_xs shape: {}'.format(batch_xs.shape))
 		if True:
 			grid_shape = batch_xs.shape
-			vel_threshold = 1
+			vel_threshold = 2
 			ave_i = 0
 			ave_j = 0
 			ave_cnt = 0
@@ -1106,14 +1189,14 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 				for j in range(grid_shape[2]):
 					grid_vel = batch_xs[0][i][j]
 					if abs(grid_vel[0]) > vel_threshold or abs(grid_vel[1]) > vel_threshold : # around .5, .75
-						ave_i += i
-						ave_j += j
+						ave_i += i + 1
+						ave_j += j + 1
 						ave_cnt += 1
 						# print('{},{}: {}'.format(i, j, grid_vel))
 			# ave: 0.7, 0.6, should be 0.6, 0.3
 			# 0.7 = 1 - 0.3
 			# 0.6 = 0.6
-			print('low res ave: {},{}'.format(np.float32(ave_i)/(grid_shape[1]*ave_cnt),np.float32(ave_j)/(grid_shape[2]*ave_cnt)))
+			print('low res {} ave: {},{}'.format(grid_shape, np.float32(ave_i)/(grid_shape[1]*ave_cnt),np.float32(ave_j)/(grid_shape[2]*ave_cnt)))
 		# input('')
 		# for tileno in range(batch_xs.shape[0]):
 		# 	# channels: 2/3
