@@ -152,8 +152,8 @@ useTempoL2 = False
 
 use_spatialdisc = True
 
-minScale = 1.
-maxScale = 1.
+# minScale = 1.
+# maxScale = 1.
 
 if(kt > 1e-6):
 	useTempoD = True

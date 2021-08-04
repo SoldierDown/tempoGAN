@@ -481,8 +481,8 @@ class TileCreator(object):
 					factor/= scaleFactor 
 					# print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
 				tileShapeLow = np.ceil(self.tile_shape_low*factor)
-				# print('self.tile_shape_low: {}'.format(self.tile_shape_low))
-				# print('tileShapeLow: {}'.format(tileShapeLow))
+				# print('self.tile_shape_low: {}'.format(self.tile_shape_low)) 		# 1x16x16x3
+				# print('tileShapeLow: {}'.format(tileShapeLow))					# 2x24x24x5
 				if self.dim==2:
 					tileShapeLow[0] = 1
 				data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomTile(data[DATA_KEY_LOW], data[DATA_KEY_HIGH], tileShapeLow.astype(int))
@@ -514,12 +514,16 @@ class TileCreator(object):
 			axis = np.random.choice(4)
 			if axis < 3: # axis < self.dim
 				data = self.flip(data, [axis])
+
+		# print('ori: {}'.format(np.copy(self.tile_shape_low)))
+		# print('ori: {}'.format(np.copy(self.tile_shape_high)))
+		# print(data[DATA_KEY_HIGH].shape)
 		
 		# check tile size
-		target_shape_low = np.copy(self.tile_shape_low)
+		target_shape_low = np.copy(self.tile_shape_low)			
 		target_shape_high = np.copy(self.tile_shape_high)
-		target_shape_low[-1] *= tile_t
-		target_shape_high[-1] *= tile_t
+		target_shape_low[-1] *= tile_t			# 1x16x16x3
+		target_shape_high[-1] *= tile_t			# 1x64x64x2
 
 		# print('-1: {}'.format(target_shape_low))
 		# print('-1: {}'.format(target_shape_high))
@@ -581,8 +585,12 @@ class TileCreator(object):
 		start = np.ceil(bounds)
 		end = frameShapeLow - tileShapeLow + np.ones(4) - start
 
-		# print('start: {}'.format(start))
-		# print('end: {}'.format(end))
+		# print('tileShapeLow: {}'.format(tileShapeLow)) 		# 1x24x24x5
+		# print('tileShapeHigh: {}'.format(tileShapeHigh))		# 4x96x96x20
+		# print('frameShapeLow: {}'.format(frameShapeLow))		# 1x64x64x3
+
+		# print('start: {}'.format(start))						# [0, 0, 0, 0]
+		# print('end: {}'.format(end))							# [1, 41, 41, -1]
 		
 		offset_up = np.array([self.upres, self.upres, self.upres])
 		
@@ -591,7 +599,7 @@ class TileCreator(object):
 			end[0] = 1
 			offset_up[0] = 1
 			tileShapeHigh[0] = 1
-			
+
 		# check if possible to cut tile
 		if np.amin((end-start)[:3]) < 0:
 			self.TCError('Can\'t cut tile {} from frame {} with bounds {}.'.format(tileShapeLow, frameShapeLow, start))
@@ -621,15 +629,30 @@ class TileCreator(object):
 			wrapper to call the augmentation operations specified in self.aops in initAugmentation
 		"""
 		for data_key in data:
-			if self.data_flags[data_key]['isLabel']: continue
+			if self.data_flags[data_key]['isLabel']: 
+				print('isLable')
+				input('')
+				continue
 			orig_shape = data[data_key].shape
 			tile_t = orig_shape[-1] // self.data_flags[data_key]['channels']
 			data_array = data[data_key]
-			if(tile_t > 1): data_array = data[data_key].reshape( (-1, tile_t, self.data_flags[data_key]['channels']) )
+			print('orig_shape: {}'.format(orig_shape))			# 1x24x24x3
+			print('tile_t: {}'.format(tile_t))					# 1
+			print('data_array: {}'.format(data_array.shape))	# 1x24x24x3
+			input('')
+			if(tile_t > 1): 
+				data_array = data[data_key].reshape( (-1, tile_t, self.data_flags[data_key]['channels']) )
 			for c_key, op in self.aops[data_key][ops_key].items():
+				print('c_key: {}, op: {}'.format(c_key, op))
+				input('')
 				if self.data_flags[data_key][c_key]:
+					print('data_key: {}, c_key: {}'.format(data_key, c_key))		# v
+					print(self.c_lists[data_key][c_key])							# [[0, 1]]
+					# print(param)													# factor
 					data_array = op(data_array, self.c_lists[data_key][c_key], param)
-			if (tile_t > 1): data[data_key] = data_array.reshape(orig_shape)
+					input('')
+			if (tile_t > 1): 
+				data[data_key] = data_array.reshape(orig_shape)
 		return data
 		
 	def rotate(self, data):
@@ -788,6 +811,12 @@ class TileCreator(object):
 		scale = np.round(np.array(data[DATA_KEY_LOW].shape) * scale )/np.array(data[DATA_KEY_LOW].shape)
 		if len(data[DATA_KEY_LOW].shape)==5: #frame sequence
 			scale = np.append([1],scale)
+		
+		print('LOW: {}'.format(data[DATA_KEY_LOW].shape))
+		print('HIGH: {}'.format(data[DATA_KEY_HIGH].shape))
+		print('scale: {}'.format(scale))
+		
+		input('')
 			
 		# apply transform
 		# low = self.applyTransform(low, zoom_matrix)
@@ -795,12 +824,15 @@ class TileCreator(object):
 		
 		#changes the size of the frame. should work well with getRandomTile(), no bounds needed
 		for data_key in data:
+			print('data_key: {}'.format(data_key))
 			if not self.data_flags[data_key]['isLabel']:
 				data[data_key]  = scipy.ndimage.zoom( data[data_key], scale, order=self.interpolation_order, mode=self.fill_mode, cval=0.0)
-		
+		# input('')
 		#necessary?
+		# print('AOPS_KEY_SCALE: {}'.format(AOPS_KEY_SCALE))		# scale
+		# print('factor: {}'.format(factor))						# 0.96...
+		# input(')
 		data = self.special_aug(data, AOPS_KEY_SCALE, factor)
-		
 		return data
 	
 	def scaleVelocities(self, datum, c_list, factor):
