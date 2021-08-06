@@ -1,3 +1,4 @@
+from PIL import Image
 #******************************************************************************
 #
 # tempoGAN: A Temporally Coherent, Volumetric GAN for Super-resolution Fluid Flow
@@ -18,6 +19,8 @@ import scipy.misc
 import scipy.ndimage 
 import matplotlib.pyplot as plt
 import imageio
+
+
 
 # check whether matplotlib is available to generate vector/quiver plots
 import imp
@@ -389,13 +392,18 @@ class TileCreator(object):
 				strides = tileShape
 			else:
 				strides = [strides,strides,strides]
+		# print('tileShape: {}'.format(tileShape))			# 1x16x16x3
+		# print('data shape: {}'.format(dataShape))			# 1x64x64x3
+		# print('pad: {}'.format(pad))						# [0,0,0,0]
+		# print('strides: {}'.format(pad))					# [0,0,0,0]
 		if dataShape[0]<=1:
 			pad[0] = 0
 			strides[0] = 1
 		channels = dataShape[3]
 		noTiles = [ (dataShape[0]-tileShape[0])//strides[0]+1, (dataShape[1]-tileShape[1])//strides[1]+1, (dataShape[2]-tileShape[2])//strides[2]+1 ]
 		tiles = []
-
+		# print('noTiles: {}'.format(noTiles))				# [1,4,4]
+		# input('')
 		for tileZ in range(0, noTiles[0]):
 			for tileY in range(0, noTiles[1]):
 				for tileX in range(0, noTiles[2]):
@@ -406,6 +414,8 @@ class TileCreator(object):
 						currTile = np.pad(currTile, pad, 'edge')
 
 					tiles.append(currTile)
+		# print(np.array(tiles).shape)		# 16x1x16x16x3
+		# input('')
 		return np.array(tiles)
 		
 	def cutTile(self, data, tileShape, offset=[0,0,0]): 
@@ -431,7 +441,7 @@ class TileCreator(object):
 	
 	def selectRandomTiles(self, selectionSize, isTraining=True, augment=False, tile_t = 1):
 		'''
-			main method to create baches
+			main method to create batches
 			Return:
 				shape: [selectionSize, z, y, x, channels * tile_t]
 				if 2D z = 1
@@ -459,7 +469,7 @@ class TileCreator(object):
 			batch_high.append(high)
 			
 		return np.asarray(batch_low), np.asarray(batch_high)
-		
+###################################################################################################################
 	def generateTile(self, isTraining=True, tile_t = 1):
 		'''
 			generates a random low-high pair of tiles (data augmentation)
@@ -476,7 +486,7 @@ class TileCreator(object):
 				if self.do_rotation: # or self.do_scaling:
 					factor*=1.5 # scaling: to avoid size errors caused by rounding
 				if self.do_scaling:
-					print('should not show up')
+					# print('should not show up')
 					scaleFactor = np.random.uniform(self.scaleFactor[0], self.scaleFactor[1])
 					factor/= scaleFactor 
 					# print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
@@ -503,8 +513,6 @@ class TileCreator(object):
 			data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomTile(data[DATA_KEY_LOW], data[DATA_KEY_HIGH], bounds=bounds) #includes "shifting"
 		
 		if self.do_rot90:
-			print('should not show up')
-			input('')
 			rot = np.random.choice(self.cube_rot[self.dim])
 			for axis in rot:
 				data = self.rotate90(data, axis)
@@ -534,6 +542,7 @@ class TileCreator(object):
 			self.TCError('Wrong tile shape after data augmentation. is: {},{}. goal: {},{}.'.format(data[DATA_KEY_LOW].shape, data[DATA_KEY_HIGH].shape, target_shape_low, target_shape_high))
 		
 		return data[DATA_KEY_LOW], data[DATA_KEY_HIGH]
+###################################################################################################################
 	
 	def getRandomDatum(self, isTraining=True, tile_t = 1):
 		'''returns a copy of a random frame'''
@@ -630,27 +639,25 @@ class TileCreator(object):
 		"""
 		for data_key in data:
 			if self.data_flags[data_key]['isLabel']: 
-				print('isLable')
-				input('')
 				continue
 			orig_shape = data[data_key].shape
 			tile_t = orig_shape[-1] // self.data_flags[data_key]['channels']
 			data_array = data[data_key]
-			print('orig_shape: {}'.format(orig_shape))			# 1x24x24x3
-			print('tile_t: {}'.format(tile_t))					# 1
-			print('data_array: {}'.format(data_array.shape))	# 1x24x24x3
-			input('')
+			# print('orig_shape: {}'.format(orig_shape))			# 1x24x24x3
+			# print('tile_t: {}'.format(tile_t))					# 1
+			# print('data_array: {}'.format(data_array.shape))	# 1x24x24x3
+			# input('')
 			if(tile_t > 1): 
 				data_array = data[data_key].reshape( (-1, tile_t, self.data_flags[data_key]['channels']) )
 			for c_key, op in self.aops[data_key][ops_key].items():
-				print('c_key: {}, op: {}'.format(c_key, op))
-				input('')
+				# print('c_key: {}, op: {}'.format(c_key, op))
+				# input('')
 				if self.data_flags[data_key][c_key]:
-					print('data_key: {}, c_key: {}'.format(data_key, c_key))		# v
-					print(self.c_lists[data_key][c_key])							# [[0, 1]]
+					# print('data_key: {}, c_key: {}'.format(data_key, c_key))		# v
+					# print(self.c_lists[data_key][c_key])							# [[0, 1]]
 					# print(param)													# factor
 					data_array = op(data_array, self.c_lists[data_key][c_key], param)
-					input('')
+					# input('')
 			if (tile_t > 1): 
 				data[data_key] = data_array.reshape(orig_shape)
 		return data
@@ -812,11 +819,11 @@ class TileCreator(object):
 		if len(data[DATA_KEY_LOW].shape)==5: #frame sequence
 			scale = np.append([1],scale)
 		
-		print('LOW: {}'.format(data[DATA_KEY_LOW].shape))
-		print('HIGH: {}'.format(data[DATA_KEY_HIGH].shape))
-		print('scale: {}'.format(scale))
+		# print('LOW: {}'.format(data[DATA_KEY_LOW].shape))
+		# print('HIGH: {}'.format(data[DATA_KEY_HIGH].shape))
+		# print('scale: {}'.format(scale))
 		
-		input('')
+		# input('')
 			
 		# apply transform
 		# low = self.applyTransform(low, zoom_matrix)
@@ -824,7 +831,7 @@ class TileCreator(object):
 		
 		#changes the size of the frame. should work well with getRandomTile(), no bounds needed
 		for data_key in data:
-			print('data_key: {}'.format(data_key))
+			# print('data_key: {}'.format(data_key))
 			if not self.data_flags[data_key]['isLabel']:
 				data[data_key]  = scipy.ndimage.zoom( data[data_key], scale, order=self.interpolation_order, mode=self.fill_mode, cval=0.0)
 		# input('')
@@ -1073,7 +1080,7 @@ def savePngsBatch(low,high, TC, path, batchCounter=-1, save_vels=False, dscale=1
 
 
 # simpler function to output multiple tiles into grayscale pngs
-def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
+def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = '', only_save_vel_field = False):
 	'''
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
@@ -1083,7 +1090,6 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 		print('ERROR: number of tiles does not match tiles per image')
 		return
 	tiles = np.asarray(tiles)
-	print('tiles: {}'.format(tiles.shape))
 	noImages = len(tiles)//tilesInImage # only 1 image
 	if save_gif:
 		gif=[]
@@ -1118,25 +1124,99 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 		y = []
 		u = []
 		v = []
-		min_norm = 1e5
-		max_norm = -1e5
+		min_u = 1e5
+		max_u = -1e5
+		min_v = 1e5
+		max_v = -1e5
+		ave_i, ave_j, cnt = 0, 0, 0
 		for i in range(img_w):
 			for j in range(img_h):
 				x.append(img_half_dx + i * img_dx)
 				y.append(img_half_dx + j * img_dx)
-				u.append(img[i][j][0])
-				v.append(img[i][j][1])
-				cur_norm = np.sqrt(img[i][j][0]**2+img[i][j][1]**2)
-				if cur_norm < min_norm:
-					min_norm = cur_norm
-				if cur_norm > max_norm:
-					max_norm = cur_norm
-		# print('min norm: {}, max norm: {}'.format(min_norm, max_norm))
+				cur_u = img[i][j][0]
+				cur_v = img[i][j][1]
+				if cur_u > abs(1) or cur_v > abs(1):
+					ave_i += i
+					ave_j += j
+					cnt += 1
+				u.append(cur_u)
+				v.append(cur_v)
+				if cur_u > max_u:
+					max_u = cur_u
+				if cur_u < min_u:
+					min_u = cur_u
+				if cur_v < min_v:
+					min_v = cur_v
+				if cur_v > max_v:
+					max_v = cur_v
+		print('range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
+		# print('ave: {},{}'.format(np.float32(ave_i)/cnt, np.float32(ave_j)/cnt))
+		# input('')
 		plt.quiver(x,y,u,v, scale=1e2, units="xy")
 		plt.gca().set_aspect('equal', adjustable='box')
 		plt.savefig(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
 		plt.clf()
+	if not only_save_vel_field:
+		tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+		if len(tiles)%tilesInImage!=0: 
+			print('ERROR: number of tiles does not match tiles per image')
+			return
+		tiles = np.asarray(tiles)
+		# print('tiles: {}'.format(tiles.shape))
+		noImages = len(tiles)//tilesInImage # only 1 image
+		
+		for image in range(noImages):
+			img = []
+			#combine tiles to image
+			for y in range(tiles_in_image[0]):
+				offset=image*tilesInImage + y*tiles_in_image[1]
+				img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+			img = np.concatenate(img, axis=0) #combine y
+			if True:
+				tmp_grid = img.copy()
+				grid_shape = img.shape
+				for i in range(grid_shape[0]):
+					for j in range(grid_shape[1]):
+						grid_vel = img[i][j]
+						real_i = j
+						real_j = grid_shape[0] - i - 1
+						tmp_grid[real_i][real_j] = grid_vel
+				img = tmp_grid
+			img_shape = img.shape
+			img_w = img.shape[0]
+			img_h = img.shape[1]
+			channels = 3
 
+			img_dx = 1./ img_w
+
+			img_half_dx = .5 * img_dx
+			color_map  = Image.new( mode = "RGB", size = (img_w, img_h) )
+			arr = np.array(color_map)
+			min_u, max_u, min_v, max_v = 1e5, -1e5, 1e5, -1e5
+			# Create an empty image
+			color_map = np.zeros((img_w, img_h, channels), dtype=np.uint8)
+			# focus on abs
+			assumed_max = 10.
+			# Set the RGB values
+			for i in range(color_map.shape[0]):
+				for j in range(color_map.shape[1]):
+					u, v = img[i][j][0], img[i][j][1]
+					if u > max_u:
+						max_u = u
+					if u < min_u:
+						min_u = u
+					if v > max_v:
+						max_v = v
+					if v < min_v:
+						min_v = v
+					r, g, b = np.int(255 - np.abs(u)*255/assumed_max), 255, np.int(255 - np.abs(v)*255/assumed_max)
+					color_map[j][i][0] = r
+					color_map[j][i][1] = g
+					color_map[j][i][2] = b
+			
+			print('vel range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
+			# Save the image
+			scipy.misc.imsave(path + extra + 'rgb_img_{:04d}.png'.format(imageCounter*noImages+image), color_map)
 
 # simpler function to output multiple tiles into grayscale pngs
 def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
