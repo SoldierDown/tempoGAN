@@ -31,3 +31,8 @@ works for all -5s 64x64 to all -5 256x256, without activation functions: 132-126
 
 get better using data augmentation
 153-643 with lr = 1e-4, pos_mean_v = [4.81]
+
+
+
+use 9100-9129: vx
+use 9200-9229: vy

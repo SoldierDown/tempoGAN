@@ -267,7 +267,7 @@ if not load_model_test == -1:
 		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
 
 	else:
-		test_path,_ = ph.getNextTestPath(testPathStartNo, basePath)
+		test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
 else:
 	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
@@ -378,10 +378,13 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=
 	# resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
 	if use_linear:
 		resUnit1 = tf.add( gc2, gs1 )
+		rbId += 1
+		return resUnit1
 	else:
 		resUnit1 = tf.nn.relu( tf.add( gc2, gs1 ) )
-	rbId += 1
-	return resUnit1
+		rbId += 1
+		return resUnit1
+	
 
 def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
@@ -413,8 +416,8 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		inRu3 = ru2
 		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
+		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF

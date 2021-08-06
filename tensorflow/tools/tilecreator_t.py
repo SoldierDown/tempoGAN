@@ -1020,7 +1020,7 @@ def savePngsBatch(low,high, TC, path, batchCounter=-1, save_vels=False, dscale=1
 
 
 # simpler function to output multiple tiles into grayscale pngs
-def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
+def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, write_to_txt = False, save_rgb=None, rgb_interval=[-1,1], extra = ''):
 	'''
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
@@ -1077,6 +1077,8 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 	print('pos_mean_v: {}, pos_s2: {}'.format(pos_mean_v, pos_ss))
 	print('############################')
 	noImages = len(tiles)//tilesInImage
+	print('noImages: {}'.format(noImages))
+	# input('')
 	if save_gif:
 		gif=[]
 		
@@ -1087,6 +1089,19 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 			offset=image*tilesInImage + y*tiles_in_image[1]
 			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
 		img = np.concatenate(img, axis=0) #combine y
+		if True:
+			tmp_grid = img.copy()
+			# ave: 0.7, 0.6, should be 0.6, 0.3
+			# 0.7 = 1 - 0.3
+			# 0.6 = 0.6
+			grid_shape = img.shape
+			for i in range(grid_shape[0]):
+				for j in range(grid_shape[1]):
+					grid_vel = img[i][j]
+					real_i = j
+					real_j = grid_shape[0] - i - 1
+					tmp_grid[real_i][real_j] = grid_vel
+			img = tmp_grid
 		# move channels to first dim.
 		img_c = np.rollaxis(img, -1, 0)
 		if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
@@ -1100,6 +1115,14 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 		else:
 			for i in channels:
 				scipy.misc.toimage(img_c[i], cmin=0.0, cmax=1.0).save(path + extra + 'img_{:04d}_c{:04d}.png'.format(imageCounter*noImages+image, i))
+		# save img
+		if write_to_txt:
+			axis_v_data = open(path + 'axis_v_{:04d}.txt'.format(imageCounter*noImages+image),'w')
+			for i in range(img.shape[0]):
+				for j in range(img.shape[1]):
+					val = img[i][j][0]
+					axis_v_data.write(str(np.float32(val))+'\n')
+			axis_v_data.close()
 
 	
 # store velocity as quiver plot
