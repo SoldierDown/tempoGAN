@@ -150,18 +150,18 @@ ph.checkUnusedParams()
 useTempoD = False
 useTempoL2 = False
 
-use_spatialdisc = True
+use_spatialdisc = False
 
 # minScale = 1.
 # maxScale = 1.
 
-if(kt > 1e-6):
-	useTempoD = True
-if(kt_l > 1e-6):
-	useTempoL2 = True
-if(kt > 1e-6 and kt_l > 1e-6):
-	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-	exit(1)
+# if(kt > 1e-6):
+# 	useTempoD = True
+# if(kt_l > 1e-6):
+# 	useTempoL2 = True
+# if(kt > 1e-6 and kt_l > 1e-6):
+# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+# 	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -307,7 +307,7 @@ if not load_model_test == -1:
 		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
 
 	else:
-		test_path,_ = ph.getNextTestPath(testPathStartNo, basePath)
+		test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
 else:
 	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
@@ -447,19 +447,19 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
 		# resF = tf.reshape( ru4, shape=[-1, n_output] )
-
 		# 4x
 		print('n_inputChannels: {}'.format(n_inputChannels))
 		print('n_outputChannels: {}'.format(n_outputChannels))
+		filter_size = 5
 		gan.max_depool()
 		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, 5)
-		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, 5)
+		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, filter_size=filter_size)
+		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, filter_size=filter_size)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, 5)
+		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, filter_size=filter_size)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, 5, use_linear = True)
+		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
@@ -475,12 +475,13 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
 			shape = tf.shape(in_low)					# 16, 16x16x4
-			# print('in_low: {}'.format(in_low.shape)) 	# 1024 = 16 x 16 x 4
+			# print('in_low: {}'.format(in_low.shape)) 	# (?, 512); 512 = 16 x 16 x 2
+			# input('')
 			# slice: [beginning indices] [output size]
 			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_outputChannels*n_input/n_inputChannels)])
 			# in_low = tf.slice(in_low,[0,int(3*n_input/n_inputChannels)],[shape[0],int(n_input/n_inputChannels)])
-			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, n_outputChannels])).max_depool(height_factor = upRes,width_factor=upRes) # NHWC
+			in_low = GAN(tf.reshape(in_low, shape=[-1, tileSizeLow, tileSizeLow, n_outputChannels])).max_depool(height_factor = upRes, width_factor=upRes) # NHWC
 			in_high = tf.reshape(in_high, shape=[-1, tileSizeHigh, tileSizeHigh, n_outputChannels])
 			filter=[4,4]
 			stride = [2]
@@ -497,14 +498,15 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 		# merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
 		print('in_low: {}'.format(in_low.shape))
 		print('in_high: {}'.format(in_high.shape))
-		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) #64
-		d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) #32
-
-		d2,_ = gan.convolutional_layer(64, filter, lrelu, stride=stride2, name="d_c2", reuse=reuse, batch_norm=use_batch_norm, train=train) #64
-
-		d3,_ = gan.convolutional_layer(128, filter, lrelu, stride=stride, name="d_c3", reuse=reuse, batch_norm=use_batch_norm, train=train) #128
-
-		d4,_ = gan.convolutional_layer(256, filter, lrelu, stride=[1], name="d_c4", reuse=reuse, batch_norm=use_batch_norm, train=train) #256
+		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) # 64
+		d1,_ = gan.convolutional_layer(32, filter, stride=stride2, name="d_c1", reuse=reuse) # 32
+		d2,_ = gan.convolutional_layer(64, filter, stride=stride2, name="d_c2", reuse=reuse, batch_norm=use_batch_norm, train=train) # 64
+		d3,_ = gan.convolutional_layer(128, filter, stride=stride, name="d_c3", reuse=reuse, batch_norm=use_batch_norm, train=train) # 128
+		d4,_ = gan.convolutional_layer(256, filter, stride=[1], name="d_c4", reuse=reuse, batch_norm=use_batch_norm, train=train) # 256
+		# d1,_ = gan.convolutional_layer(32, filter, lrelu, stride=stride2, name="d_c1", reuse=reuse) # 32
+		# d2,_ = gan.convolutional_layer(64, filter, lrelu, stride=stride2, name="d_c2", reuse=reuse, batch_norm=use_batch_norm, train=train) # 64
+		# d3,_ = gan.convolutional_layer(128, filter, lrelu, stride=stride, name="d_c3", reuse=reuse, batch_norm=use_batch_norm, train=train) # 128
+		# d4,_ = gan.convolutional_layer(256, filter, lrelu, stride=[1], name="d_c4", reuse=reuse, batch_norm=use_batch_norm, train=train) # 256
 
 		shape=gan.flatten()
 		gan.fully_connected_layer(1, None, name="d_l5")
@@ -683,13 +685,15 @@ if not outputOnly:
 		disc_sigmoid = tf.reduce_mean(tf.nn.sigmoid(disc))
 		gen_sigmoid = tf.reduce_mean(tf.nn.sigmoid(gen))
 
-		# loss of the discriminator with real input 
+		# sigmoid_cross_entropy_with_logits = labels * -log(sigmoid(logits)) + (1 - labels) * -log(1 - sigmoid(logits))
+		# loss of the discriminator with real input: -En[log(D_s(x,y))]
 		disc_loss_disc = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc, labels=tf.ones_like(disc)))
-		# loss of the discriminator with input from generator
+		# loss of the discriminator with input from generator: -En[log(1-Ds(x,G(x)))]
 		disc_loss_gen = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.zeros_like(gen)))
+		# Enj[lambdaj |F(G(x))-F(y)|^2]
 		disc_loss_layer = k2_l1*tf.reduce_mean(tf.nn.l2_loss(dy1 - gy1)) + k2_l2*tf.reduce_mean(tf.nn.l2_loss(dy2 - gy2)) + k2_l3*tf.reduce_mean(tf.nn.l2_loss(dy3 - gy3)) + k2_l4*tf.reduce_mean(tf.nn.l2_loss(dy4 - gy4))
 		disc_loss = disc_loss_disc * weight_dld + disc_loss_gen
-		# loss of the generator
+		# loss of the generator: -En[log(Ds(x,G(x)))]
 		gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.ones_like(gen)))
 	else:
 		gen_loss = tf.zeros([1])
@@ -921,9 +925,9 @@ def addVorticity(Vel):
 
 def getInput(index = 1, randomtile = True, isTraining = True, batch_size = 1, useDataAugmentation = False):
 	if randomtile == False:
-		# this way
 		batch_xs, batch_ys = tiCr.getFrameTiles(index) 
 	else:
+		# this way
 		batch_xs, batch_ys = tiCr.selectRandomTiles(selectionSize = batch_size, augment=useDataAugmentation)	
 	batch_xs = np.reshape(batch_xs, (-1, n_input))
 	batch_ys = np.reshape(batch_ys, (-1, n_output))
@@ -1134,33 +1138,42 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		# print('{} = {} * {} + {} * {}'.format(particle_vel[idx], flip, flip_vel, (1.-flip), pic_vel))
 		# particle_vel[idx] = np.array([vel[0], vel[1]])
 	# input('')
-
-#evaluate the generator (sampler) on the first step of the first simulation and output result
-def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path, imageindex = 0):
+#										1st step: frame 1
+# evaluate the generator (sampler) on the first step of the first simulation and output result
+def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, imageindex = 0):
 	if premadeTiles:
 		#todo output for premadetiles
 		pass
 	else:
 		if (not outputOnly):
-			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
+			# print('not outputOnly')
+			batch_xs, batch_ys = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
+		# print('shape: {}'.format(batch_xs.shape))
 		resultTiles = []
 		for tileno in range(batch_xs.shape[0]):
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
-			# print('results: {}'.format(results.shape))
-			# input('hanging')
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
 			imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz, 2])
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, 2])
 		else:
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
-			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
 		tc.saveVecField(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		# print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
+		# print('batch_ys: {}'.format(batch_ys.shape))			# 16x512
+		original_batch_ys = np.reshape(batch_ys,[batch_ys.shape[0], imgSz, imgSz, 2])
+
+		ori_low_img_size = int((batch_xs.shape[1]/n_inputChannels)**(1.0/2))
+		original_batch_xs = np.reshape(batch_xs,[batch_xs.shape[0], imgSz, imgSz, 2])
+		# print('resultTiles: {}'.format(resultTiles.shape))		# 16x64x64x2
+		tc.saveVecField(original_batch_ys, outPath, imageCounter=(imageindex+frameMin), extra='ori_high_', tiles_in_image=tiles_in_image)
+		tc.saveVecField(original_batch_xs, outPath, imageCounter=(imageindex+frameMin), extra='ori_low_')
 		# tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
 		# tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
 
@@ -1185,6 +1198,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			for i in range(grid_shape[1]):
 				for j in range(grid_shape[2]):
 					grid_vel = batch_xs[0][i][j]
+					print('grid_vel: {}'.format(grid_vel))
 					if abs(grid_vel[0]) > vel_threshold or abs(grid_vel[1]) > vel_threshold : # around .5, .75
 						ave_i += i + 1
 						ave_j += j + 1
@@ -1193,7 +1207,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			# ave: 0.7, 0.6, should be 0.6, 0.3
 			# 0.7 = 1 - 0.3
 			# 0.6 = 0.6
-			print('low res {} ave: {},{}'.format(grid_shape, np.float32(ave_i)/(grid_shape[1]*ave_cnt),np.float32(ave_j)/(grid_shape[2]*ave_cnt)))
+			# print('low res {} ave: {},{}'.format(grid_shape, np.float32(ave_i)/(grid_shape[1]*ave_cnt),np.float32(ave_j)/(grid_shape[2]*ave_cnt)))
 		# input('')
 		# for tileno in range(batch_xs.shape[0]):
 		# 	# channels: 2/3
@@ -1405,6 +1419,7 @@ def saveModel(total_cost, disc_cost, gen_cost, exampleOut=-1, imgPath = test_pat
 		plt.clf()
 
 	if exampleOut > -1:
+		print('not this way')
 		generateValiImage(imageindex = save_no, outPath = imgPath)
 	save_no += 1
 	return msg
@@ -1491,7 +1506,7 @@ if not outputOnly and trainGAN:
 					# print('batch_xs: {}:\n{}'.format(batch_xs.shape, batch_xs)) # (16, 16x16x4)
 					# input('')
 					# print('batch_ys: {}:\n{}'.format(batch_ys.shape, batch_ys)) # (16, 4096)
-					_, disc_cost, summary, disc_sig, gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc, disc_sigmoid,gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
+					_, disc_cost, summary, disc_sig, gen_sig = sess.run([disc_optimizer, disc_loss, lossTrain_disc, disc_sigmoid, gen_sigmoid], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, lr_global_step: lrgs}     , options=run_options, run_metadata=run_metadata )
 					# print('disc_optimizer: {}'.format(disc_optimizer))
 					# print('disc_loss shape: {}'.format(disc_loss.shape))
 					# print('disc_loss: {}'.format(disc_loss))
@@ -1564,7 +1579,7 @@ if not outputOnly and trainGAN:
 						_, gen_cost, layer_cost, gen_l1_cost, summary, gen_l2_cost = result_list
 					else:
 						_, gen_l1_cost, gen_l2_cost = result_list
-						gen_cost = gen_l1_cost
+						# gen_cost = gen_l1_cost
 					gen_tem_cost = 0
 					gen_tem_cost_l = 0
 				avgL1Cost_gen += gen_l1_cost
@@ -1752,6 +1767,7 @@ if not outputOnly and trainGAN:
 				if saved:
 					print('\t' + saveMsg) # print save massage here for clarity
 				if genValiImg > -1:
+					# this way
 					generateValiImage(outPath = test_path+'test_img/', imageindex = image_no)
 					image_no +=1
 				sys.stdout.flush()
