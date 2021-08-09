@@ -1,17 +1,27 @@
 import os
 
 res = 256
-start_sim_no = 1000
-start_dest_folder = 6000
-n_sims = 20
+start_sim_no = 1080
+start_dest_folder = 1000
+n_sims = 30
 last_frame = 120
+
+
+use_wa = False
+
+folder = ''
+if use_wa:
+    folder = 'training_data_downsampled_wa'
+else:
+    folder = 'training_data_downsampled_p2g'
+    start_dest_folder += 1000
 
 copy_cmd ='cp '
 copy_from_prev = '/nfs/hsu/repo/MPM/mpm/output-2d-'
 copy_to_prev = '../2ddata_sim/sim_'
 
 command_pre = 'cp /nfs/hsu/repo/MPM/mpm/output-2d-'
-command_mid = '-256x256/training_data_downsampled/* ../2ddata_sim/sim_'
+command_mid = '-256x256/' + folder + '/* ../2ddata_sim/sim_'
 command_post = '/'
 
 cur_dest_folder = start_dest_folder

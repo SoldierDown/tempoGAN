@@ -1101,6 +1101,7 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 			offset=image*tilesInImage + y*tiles_in_image[1]
 			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
 		img = np.concatenate(img, axis=0) #combine y
+		print('img size: {}'.format(img.shape))
 		if True:
 			tmp_grid = img.copy()
 			# ave: 0.7, 0.6, should be 0.6, 0.3

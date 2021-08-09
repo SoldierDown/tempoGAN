@@ -139,8 +139,9 @@ overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifil
 # extras 
 collapse_z			= int(ph.getParam( "collapse_z",		   	True )) 
 vis_threshold		= float(ph.getParam( "visThreshold",		50000 ))
-draw_particles		= int(ph.getParam( "drawParticles",   	  True ))>0 		
+draw_particles		= int(ph.getParam( "drawParticles",   	  	True ))>0 		
 move_particles_only	= int(ph.getParam( "moveOnly",   	  		True ))>0 		
+view_only			= int(ph.getParam( "viewOnly",   	  		True ))>0 		
 
 if move_particles_only:
 	useDensity = False
@@ -150,18 +151,18 @@ ph.checkUnusedParams()
 useTempoD = False
 useTempoL2 = False
 
-use_spatialdisc = False
+use_spatialdisc = True
 
 # minScale = 1.
 # maxScale = 1.
 
-# if(kt > 1e-6):
-# 	useTempoD = True
-# if(kt_l > 1e-6):
-# 	useTempoL2 = True
-# if(kt > 1e-6 and kt_l > 1e-6):
-# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-# 	exit(1)
+if(kt > 1e-6):
+	useTempoD = True
+if(kt_l > 1e-6):
+	useTempoL2 = True
+if(kt > 1e-6 and kt_l > 1e-6):
+	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -183,8 +184,9 @@ highfilename = "velocity_high_%04d.uni"
 mfl = ["velocity"]
 mfh = ["velocity"]
 if outputOnly: 
-	highfilename = None
-	mfh = None
+	if not view_only:
+		highfilename = None
+		mfh = None
 if useDensity:
 	channelLayout_low += ',d'
 	mfl= np.append(mfl, "density")
@@ -241,7 +243,11 @@ else:
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
-print('inputx shape: {}'.format(inputx.shape))
+inputy = y.copy()
+# print('inputx shape: {}'.format(inputx.shape))
+# print('y shape: {}'.format(y.shape))
+# print('y[0] shape: {}'.format(y[0].shape))
+# input('')
 # if outputOnly:
 # 	input_shape = inputx.shape
 # 	for frame in range(input_shape[0]):
@@ -305,7 +311,14 @@ if not load_model_test == -1:
 	if outputOnly:
 		out_path_prefix = 'out_%04d-%04d' % (load_model_test,load_model_no)
 		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
-
+		print('test path: {}'.format(test_path))
+		# create dirs for different output
+		# 1. original velocity field(coarse and fine)
+		# 2. generated velocity field
+		# 3. particle system
+		os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
+		os.system('mkdir ' + test_path + 'generated_vel_field/')
+		os.system('mkdir ' + test_path + 'particles/')
 	else:
 		test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
@@ -322,12 +335,12 @@ def drawParticles(name):
 		# draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
 		draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
 		# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-	im.save(test_path + '/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+	im.save(test_path + '/particles/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
 
 
 # read particle positions
 if outputOnly:
-	with open('/nfs/hsu/repo/MPM/mpm/every_substep/output-2d-1002-256x256/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1109-256x256/particle_positions.txt') as f:
 		ave_pos = np.zeros(2)
 		cnt = 0
 		lines = [line.rstrip() for line in f]
@@ -335,7 +348,7 @@ if outputOnly:
 			pos = line.split(' ')
 			# print(pos)
 			cur_pos = np.array(np.float32([pos[0], pos[1]]))
-			print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1])) # around 0.6, 0.3: same as sim
+			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1])) # around 0.6, 0.3: same as sim
 			# cur_pos[0], cur_pos[1] = cur_pos[1], cur_pos[0]
 			# print('cur_pos: {}, {}'.format(cur_pos[0], cur_pos[1]))
 			# cur_pos[0], cur_pos[1] = cur_pos[0], 1. - cur_pos[1]
@@ -351,7 +364,7 @@ if outputOnly:
 		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/every_substep/output-2d-1002-256x256/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1109-256x256/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -622,7 +635,8 @@ if not outputOnly: #setup for training
 		disc, dy1, dy2, dy3, dy4 = disc_model(x_disc, y, use_batch_norm=bn, train=train)
 		print('1st done')
 		gen, gy1, gy2, gy3, gy4 = disc_model(x_disc, gen_part, reuse=True, use_batch_norm=bn, train=train)
-	if genValiImg > -1: sampler = gen_part
+	if genValiImg > -1: 
+		sampler = gen_part
 else: #setup for generating output with trained model
 	sampler = gen_model(x, use_batch_norm=bn, train=False)
 
@@ -894,7 +908,6 @@ if not outputOnly:
 
 	merged_summary_op = tf.summary.merge_all()
 	summary_writer    = tf.summary.FileWriter(test_path, sess.graph)
-
 save_no = 0
 tileSizeHi = upRes * tileSizeLow
 if dataDimension == 2:
@@ -904,7 +917,6 @@ else:
 image_no = 0
 if not outputOnly:
 	os.makedirs(test_path+'test_img/')
-
 def addVorticity(Vel):
 	if dataDimension == 2:
 		vorout = np.zeros_like(Vel)
@@ -1150,7 +1162,14 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 			batch_xs, batch_ys = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
+			batch_ys = inputy[frame_no]
+			# batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
+			# batch_ys = y[frame_no]
+		# print('frame_no: {}'.format(frame_no))
+		# print('y[0] shape: {}'.format(y[0].shape))
+		# print('batch_ys shape: {}'.format(batch_ys.shape)) # 131072
 		# print('shape: {}'.format(batch_xs.shape))
+		# input('')
 		resultTiles = []
 		for tileno in range(batch_xs.shape[0]):
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
@@ -1160,22 +1179,31 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 		if dataDimension == 2: # resultTiles may have a different size
 			imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, 2])
+			print('resultTiles: {}'.format(resultTiles.shape))
 		else:
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		tc.saveVecField(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		tc.saveVecField(resultTiles, outPath + 'generated_vel_field/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		# (-1, n_input)
 		# print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
 		# print('batch_ys: {}'.format(batch_ys.shape))			# 16x512
-		original_batch_ys = np.reshape(batch_ys,[batch_ys.shape[0], imgSz, imgSz, 2])
-
-		ori_low_img_size = int((batch_xs.shape[1]/n_inputChannels)**(1.0/2))
-		original_batch_xs = np.reshape(batch_xs,[batch_xs.shape[0], imgSz, imgSz, 2])
+		# original_batch_ys = np.reshape(original_batch_ys,[1, imgSz, imgSz, 2])
+		# os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
+		# os.system('mkdir ' + test_path + 'generated_vel_field/')
+		# os.system('mkdir ' + test_path + 'particles/')
+		if outputOnly:
+			original_batch_ys = np.reshape(batch_ys, [1, imgSz, imgSz, 2])
+			tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_')
+			tc.saveVecField(batch_xs, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra = 'ori_low_')
+		# ori_low_img_size = int((batch_xs.shape[1]/n_inputChannels)**(1.0/2))
+		# original_batch_xs = np.reshape(batch_xs,[1, imgSz, imgSz, 2])
+		# original_batch_xs = np.reshape(batch_xs,[1, imgSz, imgSz, 3])
+		# original_batch_xs = tf.slice(batch_xs, [0,0,0,0], [1, imgSz, imgSz, 2])
+		# original_batch_ys = np.reshape(original_batch_ys,[1, imgSz, imgSz, 2])
 		# print('resultTiles: {}'.format(resultTiles.shape))		# 16x64x64x2
-		tc.saveVecField(original_batch_ys, outPath, imageCounter=(imageindex+frameMin), extra='ori_high_', tiles_in_image=tiles_in_image)
-		tc.saveVecField(original_batch_xs, outPath, imageCounter=(imageindex+frameMin), extra='ori_low_')
+		# tc.saveVecField(original_batch_xs, outPath, imageCounter=(imageindex+frameMin), extra='ori_low_')
 		# tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
-		# tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
 
 # evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
@@ -1187,6 +1215,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			batch_xs, _ = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
+			# batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
 		resultTiles = []
 		print('batch_xs shape: {}'.format(batch_xs.shape))
 		if True:
@@ -1198,7 +1227,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			for i in range(grid_shape[1]):
 				for j in range(grid_shape[2]):
 					grid_vel = batch_xs[0][i][j]
-					print('grid_vel: {}'.format(grid_vel))
+					# print('grid_vel: {}'.format(grid_vel))
 					if abs(grid_vel[0]) > vel_threshold or abs(grid_vel[1]) > vel_threshold : # around .5, .75
 						ave_i += i + 1
 						ave_j += j + 1
@@ -1249,7 +1278,6 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			buildVelField(batch_xs, outPath)
 			moveParticles(frame_no=frame_no)
 			drawParticles(str(frame_no + 1))
-
 def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if dataDimension == 2:
 		print("ERROR: only for 3D Uni files output!")	
@@ -1423,7 +1451,6 @@ def saveModel(total_cost, disc_cost, gen_cost, exampleOut=-1, imgPath = test_pat
 		generateValiImage(imageindex = save_no, outPath = imgPath)
 	save_no += 1
 	return msg
-
 # write summary to test overview
 loaded_model = ''
 if not load_model_test == -1:
@@ -1443,7 +1470,6 @@ with open(basePath + 'test_overview.log', "a") as text_file:
 # START TRAINING
 training_duration = 0.0
 cost = 0.0
-
 if not outputOnly and trainGAN:
 	try:
 		print('\n*****TRAINING STARTED*****\n')
@@ -1821,7 +1847,6 @@ if not outputOnly and trainGAN:
 
 elif outputOnly: 
 	print('*****OUTPUT ONLY*****')
-
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
 		if dataDimension == 2:

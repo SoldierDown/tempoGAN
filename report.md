@@ -40,3 +40,10 @@ sim_9999
 
 use density, no Ds, no Dt, frames 10:   403, 1043
 use density, w. Ds, no Dt, frames 10:  
+
+
+
+
+# Training Data
+1. sim_1000 ~ sim_1029: wa
+2. sim_2000 ~ sim_2029: p2g
