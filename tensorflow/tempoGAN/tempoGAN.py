@@ -156,13 +156,13 @@ use_spatialdisc = True
 # minScale = 1.
 # maxScale = 1.
 
-if(kt > 1e-6):
-	useTempoD = True
-if(kt_l > 1e-6):
-	useTempoL2 = True
-if(kt > 1e-6 and kt_l > 1e-6):
-	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-	exit(1)
+# if(kt > 1e-6):
+# 	useTempoD = True
+# if(kt_l > 1e-6):
+# 	useTempoL2 = True
+# if(kt > 1e-6 and kt_l > 1e-6):
+# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+# 	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -183,10 +183,10 @@ lowfilename = "velocity_low_%04d.uni"
 highfilename = "velocity_high_%04d.uni"
 mfl = ["velocity"]
 mfh = ["velocity"]
-if outputOnly: 
-	if not view_only:
-		highfilename = None
-		mfh = None
+# if outputOnly: 
+# 	if not view_only:
+# 		highfilename = None
+# 		mfh = None
 if useDensity:
 	channelLayout_low += ',d'
 	mfl= np.append(mfl, "density")
@@ -308,6 +308,7 @@ if not load_model_test == -1:
 	if not os.path.exists(basePath + 'test_%04d/' % load_model_test):
 		print('ERROR: Test to load does not exist.')
 	load_path = basePath + 'test_%04d/model_%04d.ckpt' % (load_model_test, load_model_no)
+	# load model and generate results
 	if outputOnly:
 		out_path_prefix = 'out_%04d-%04d' % (load_model_test,load_model_no)
 		test_path,_ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
@@ -319,11 +320,24 @@ if not load_model_test == -1:
 		os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
 		os.system('mkdir ' + test_path + 'generated_vel_field/')
 		os.system('mkdir ' + test_path + 'particles/')
+	# load model and continue training
 	else:
 		test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
-
+		print('test path: {}'.format(test_path))
+		if not os.path.exists(test_path + 'test_img/'):
+			os.system('mkdir ' + test_path + 'test_img/')
+		os.system('mkdir ' + test_path + 'test_img/original_vel_field_coarse_fine/')
+		os.system('mkdir ' + test_path + 'test_img/generated_vel_field/')
+		os.system('mkdir ' + test_path + 'test_img/particles/')
+# train from scratch
 else:
 	test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
+	print('test path: {}'.format(test_path))
+	if not os.path.exists(test_path + 'test_img/'):
+			os.system('mkdir ' + test_path + 'test_img/')
+	os.system('mkdir ' + test_path + 'test_img/original_vel_field_coarse_fine/')
+	os.system('mkdir ' + test_path + 'test_img/generated_vel_field/')
+	os.system('mkdir ' + test_path + 'test_img/particles/')
 
 def drawParticles(name):
 	w = 2048
@@ -340,7 +354,7 @@ def drawParticles(name):
 
 # read particle positions
 if outputOnly:
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1109-256x256/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/saved/particle_positions.txt') as f:
 		ave_pos = np.zeros(2)
 		cnt = 0
 		lines = [line.rstrip() for line in f]
@@ -916,7 +930,8 @@ else:
 	tilesPerImg = (simSizeHigh // tileSizeHi) ** 3
 image_no = 0
 if not outputOnly:
-	os.makedirs(test_path+'test_img/')
+	if not os.path.exists(test_path + 'test_img/' ):
+		os.makedirs(test_path+'test_img/')
 def addVorticity(Vel):
 	if dataDimension == 2:
 		vorout = np.zeros_like(Vel)
@@ -1184,6 +1199,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
+		print('generated vel field: ')
 		tc.saveVecField(resultTiles, outPath + 'generated_vel_field/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
 		# (-1, n_input)
 		# print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
@@ -1194,7 +1210,9 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 		# os.system('mkdir ' + test_path + 'particles/')
 		if outputOnly:
 			original_batch_ys = np.reshape(batch_ys, [1, imgSz, imgSz, 2])
+			print('original HIGH vel field: ')
 			tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_')
+			print('original LOW vel field: ')
 			tc.saveVecField(batch_xs, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra = 'ori_low_')
 		# ori_low_img_size = int((batch_xs.shape[1]/n_inputChannels)**(1.0/2))
 		# original_batch_xs = np.reshape(batch_xs,[1, imgSz, imgSz, 2])

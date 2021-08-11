@@ -1085,78 +1085,79 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
 	'''
-	tilesInImage = tiles_in_image[0]*tiles_in_image[1]
-	if len(tiles)%tilesInImage!=0: 
-		print('ERROR: number of tiles does not match tiles per image')
-		return
-	tiles = np.asarray(tiles)
-	noImages = len(tiles)//tilesInImage # only 1 image
-	if save_gif:
-		gif=[]
+	if False:
+		tilesInImage = tiles_in_image[0]*tiles_in_image[1]
+		if len(tiles)%tilesInImage!=0: 
+			print('ERROR: number of tiles does not match tiles per image')
+			return
+		tiles = np.asarray(tiles)
+		noImages = len(tiles)//tilesInImage # only 1 image
+		if save_gif:
+			gif=[]
 		
-	for image in range(noImages):
-		img = []
-		#combine tiles to image
-		for y in range(tiles_in_image[0]):
-			offset=image*tilesInImage + y*tiles_in_image[1]
-			img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
-		img = np.concatenate(img, axis=0) #combine y
-		print('img size: {}'.format(img.shape))
-		if True:
-			tmp_grid = img.copy()
-			# ave: 0.7, 0.6, should be 0.6, 0.3
-			# 0.7 = 1 - 0.3
-			# 0.6 = 0.6
-			grid_shape = img.shape
-			for i in range(grid_shape[0]):
-				for j in range(grid_shape[1]):
-					grid_vel = img[i][j]
-					real_i = j
-					real_j = grid_shape[0] - i - 1
-					tmp_grid[real_i][real_j] = grid_vel
-			img = tmp_grid
-		img_shape = img.shape
-		img_w = img.shape[0]
-		img_h = img.shape[1]
-		img_dx = 1./ img_w
+		for image in range(noImages):
+			img = []
+			#combine tiles to image
+			for y in range(tiles_in_image[0]):
+				offset=image*tilesInImage + y*tiles_in_image[1]
+				img.append(np.concatenate(tiles[offset:offset+tiles_in_image[1]],axis=1)) #combine x
+			img = np.concatenate(img, axis=0) #combine y
+			print('img size: {}'.format(img.shape))
+			if True:
+				tmp_grid = img.copy()
+				# ave: 0.7, 0.6, should be 0.6, 0.3
+				# 0.7 = 1 - 0.3
+				# 0.6 = 0.6
+				grid_shape = img.shape
+				for i in range(grid_shape[0]):
+					for j in range(grid_shape[1]):
+						grid_vel = img[i][j]
+						real_i = j
+						real_j = grid_shape[0] - i - 1
+						tmp_grid[real_i][real_j] = grid_vel
+				img = tmp_grid
+			img_shape = img.shape
+			img_w = img.shape[0]
+			img_h = img.shape[1]
+			img_dx = 1./ img_w
 
-		img_half_dx = .5 * img_dx
-		x = []
-		y = []
-		u = []
-		v = []
-		min_u = 1e5
-		max_u = -1e5
-		min_v = 1e5
-		max_v = -1e5
-		ave_i, ave_j, cnt = 0, 0, 0
-		for i in range(img_w):
-			for j in range(img_h):
-				x.append(img_half_dx + i * img_dx)
-				y.append(img_half_dx + j * img_dx)
-				cur_u = img[i][j][0]
-				cur_v = img[i][j][1]
-				if cur_u > abs(1) or cur_v > abs(1):
-					ave_i += i
-					ave_j += j
-					cnt += 1
-				u.append(cur_u)
-				v.append(cur_v)
-				if cur_u > max_u:
-					max_u = cur_u
-				if cur_u < min_u:
-					min_u = cur_u
-				if cur_v < min_v:
-					min_v = cur_v
-				if cur_v > max_v:
-					max_v = cur_v
-		print('range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
-		# print('ave: {},{}'.format(np.float32(ave_i)/cnt, np.float32(ave_j)/cnt))
-		# input('')
-		plt.quiver(x,y,u,v, scale=1e2, units="xy")
-		plt.gca().set_aspect('equal', adjustable='box')
-		plt.savefig(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
-		plt.clf()
+			img_half_dx = .5 * img_dx
+			x = []
+			y = []
+			u = []
+			v = []
+			min_u = 1e5
+			max_u = -1e5
+			min_v = 1e5
+			max_v = -1e5
+			ave_i, ave_j, cnt = 0, 0, 0
+			for i in range(img_w):
+				for j in range(img_h):
+					x.append(img_half_dx + i * img_dx)
+					y.append(img_half_dx + j * img_dx)
+					cur_u = img[i][j][0]
+					cur_v = img[i][j][1]
+					if cur_u > abs(1) or cur_v > abs(1):
+						ave_i += i
+						ave_j += j
+						cnt += 1
+					u.append(cur_u)
+					v.append(cur_v)
+					if cur_u > max_u:
+						max_u = cur_u
+					if cur_u < min_u:
+						min_u = cur_u
+					if cur_v < min_v:
+						min_v = cur_v
+					if cur_v > max_v:
+						max_v = cur_v
+			print('range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
+			# print('ave: {},{}'.format(np.float32(ave_i)/cnt, np.float32(ave_j)/cnt))
+			# input('')
+			plt.quiver(x,y,u,v, scale=1e2, units="xy")
+			plt.gca().set_aspect('equal', adjustable='box')
+			plt.savefig(path + extra + 'img_{:04d}.png'.format(imageCounter*noImages+image))
+			plt.clf()
 	if not only_save_vel_field:
 		tilesInImage = tiles_in_image[0]*tiles_in_image[1]
 		if len(tiles)%tilesInImage!=0: 
@@ -1199,8 +1200,8 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 			# focus on abs
 			assumed_max = 10.
 			# Set the RGB values
-			for i in range(color_map.shape[0]):
-				for j in range(color_map.shape[1]):
+			for j in range(color_map.shape[1] - 1, -1, -1):
+				for i in range(color_map[0].shape[0]):
 					u, v = img[i][j][0], img[i][j][1]
 					if u > max_u:
 						max_u = u
@@ -1214,6 +1215,11 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 					color_map[j][i][0] = r
 					color_map[j][i][1] = g
 					color_map[j][i][2] = b
+			tmp_map = color_map.copy()
+			for i in range(color_map.shape[0]):
+				for j in range(color_map.shape[1]):
+					tmp_map[i][j] = color_map[color_map.shape[0] - 1 - i][j]
+			color_map = tmp_map
 			
 			print('vel range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
 			# Save the image
@@ -1245,6 +1251,11 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 		print('image shape: {}'.format(img.shape))
 		# move channels to first dim.
 		img_c = np.rollaxis(img, -1, 0)
+		tmp_map = img_c.copy()
+		for i in range(img_c.shape[0]):
+			for j in range(img_c.shape[1]):
+				tmp_map[i][j] = img_c[img_c.shape[0] - 1 - i][j]
+		img_c = tmp_map
 		if len(img_c)>1 and (plot_vel_x_y or save_rgb!=None):
 			if plot_vel_x_y: saveVel(img, path, imageCounter+image)
 			if save_rgb!=None: saveRGBChannels(img,path, save_rgb,value_interval=rgb_interval, imageCounter=imageCounter+image)

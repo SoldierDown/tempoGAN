@@ -7,7 +7,7 @@ n_sims = 30
 last_frame = 120
 
 
-use_wa = False
+use_wa = True
 
 folder = ''
 if use_wa:
@@ -15,6 +15,11 @@ if use_wa:
 else:
     folder = 'training_data_downsampled_p2g'
     start_dest_folder += 1000
+
+start_sim_no = 2000
+n_sims = 30
+folder = 'training_data_downsampled_p2g'
+start_dest_folder = 4000
 
 copy_cmd ='cp '
 copy_from_prev = '/nfs/hsu/repo/MPM/mpm/output-2d-'
@@ -29,7 +34,7 @@ for sim in range(n_sims):
     cur_sim_no = start_sim_no + sim
 
     copy_from_fp = copy_from_prev + '%d-%dx%d' % (cur_sim_no, res, res)
-    copy_from_fp_sub = copy_from_fp + '/%d' % (last_frame)
+    copy_from_fp_sub = copy_from_fp + '/%d' % (100)
     sim_complete = os.path.exists(copy_from_fp_sub)
     if not sim_complete:
         print('skipping %d'%cur_sim_no)
