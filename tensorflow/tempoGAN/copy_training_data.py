@@ -1,7 +1,7 @@
 import os
 
 res = 256
-start_sim_no = 1080
+start_sim_no = 2000
 start_dest_folder = 1000
 n_sims = 30
 last_frame = 120
@@ -16,10 +16,10 @@ else:
     folder = 'training_data_downsampled_p2g'
     start_dest_folder += 1000
 
-start_sim_no = 2000
-n_sims = 30
-folder = 'training_data_downsampled_p2g'
-start_dest_folder = 4000
+# start_sim_no = 2000
+# n_sims = 30
+# folder = 'training_data_downsampled_wa_no_extra'
+# start_dest_folder = 3000
 
 copy_cmd ='cp '
 copy_from_prev = '/nfs/hsu/repo/MPM/mpm/output-2d-'
