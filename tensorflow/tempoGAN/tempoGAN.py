@@ -110,7 +110,7 @@ batch_norm		= int(ph.getParam( "batchNorm",	   True ))>0			# apply batch normali
 bn_decay		= float(ph.getParam( "bnDecay",	   0.999 ))				# decay of batch norm EMA
 use_spatialdisc = int(ph.getParam( "use_spatialdisc",		   True )) 	# use spatial discriminator or not
 
-useDensity   	= int(ph.getParam( "useDensity",   0  )) 			# use density or not
+useDensity   	= int(ph.getParam( "useDensity",   0  )) 				# use density or not
 premadeTiles	= int(ph.getParam( "premadeTiles",   0  ))		 		# use pre-made tiles?
 
 useDataAugmentation = int(ph.getParam( "dataAugmentation", 0 ))		 	# use dataAugmentation or not
@@ -153,8 +153,8 @@ useTempoL2 = False
 
 use_spatialdisc = True
 
-# minScale = 1.
-# maxScale = 1.
+minScale = .7
+maxScale = 1.5
 
 # if(kt > 1e-6):
 # 	useTempoD = True
@@ -419,14 +419,16 @@ kktl = tf.placeholder(tf.float32)
 keep_prob = tf.placeholder(tf.float32)
 
 print("x: {}".format(x.get_shape()))
-# --- main graph setup ---
-# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
-# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
-# inRu3 = ru2
-# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
 
+# --- main graph setup ---
 rbId = 0
+# s1: outChannels of intermediate conv layer
+# s2: outChannels of final and skip conv layer
+# filter: 2D: [H,W]; 3D: [D,H,W]
+# returns both normalized and linearized versions
+def self_defined_activation(in_data):
+	return in_data * tf.math.tanh(in_data)
+
 def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=False):
 	global rbId
 
@@ -438,16 +440,17 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=
 		filter = [filter_size,filter_size,filter_size]
 		filter1 = [1,1,1]
 
-	gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	# gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.leaky_relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	gc2,_ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
+	gc1, _ = gan.convolutional_layer( s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) 	# ->16,64
+	gc2, _ = gan.convolutional_layer( s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) 	# ->8,128
 
 	# shortcut connection
-	gs1,_ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	gs1, _ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) 	# ->16,64
 	
-	# resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
 	if use_linear:
-		resUnit1 = tf.add( gc2, gs1 )
+		# resUnit1 = tf.add( gc2, gs1 )
+		tmpUnit = tf.add( gc2, gs1)
+		resUnit1 = tmpUnit
+		# resUnit1 = self_defined_activation(tmpUnit)
 	else:
 		resUnit1 = tf.nn.relu( tf.add( gc2, gs1 ) )
 	rbId += 1
@@ -458,10 +461,10 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 	print("\n\t Generator (resize-resnett3-deep) with {} channels".format(n_inputChannels))
 	with tf.variable_scope("generator", reuse=reuse) as scope:
 		if dataDimension == 2:
-			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) #NHWC
+			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) 				# NHWC
 			patchShape = [2,2]
 		elif dataDimension == 3:
-			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, n_inputChannels]) #NDHWC
+			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, tileSizeLow, n_inputChannels]) 	# NDHWC
 			patchShape = [2,2,2]
 		rbId = 0
 		gan = GAN(_in)
@@ -471,23 +474,34 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
 		# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		# inRu3 = ru2
-		# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
+		# ru3 = resBlock(gan, inRu3	, 32	, 8, reuse, use_batch_norm	, 5)
+		# ru4 = resBlock(gan, ru3	, 2		, 1, reuse, False			, 5, use_linear=True)
 		# resF = tf.reshape( ru4, shape=[-1, n_output] )
 		# 4x
 		print('n_inputChannels: {}'.format(n_inputChannels))
 		print('n_outputChannels: {}'.format(n_outputChannels))
-		filter_size = 5
-		gan.max_depool()
-		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, filter_size=filter_size)
-		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, filter_size=filter_size)
+		filter_size = 7
+		# NI: Nearest Neighbor Interpolation
+		gan.max_depool()				# x2
+		inp = gan.max_depool()			# x4
+		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,filter_size)
+		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm, filter_size)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, filter_size=filter_size)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
+		ru3 = resBlock(gan, inRu3 , 64	, 16, reuse, use_batch_norm	, filter_size)
+		ru4 = resBlock(gan, ru3	, 4		, n_outputChannels, reuse, False			, filter_size, use_linear=True)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
+
+		# ru1 = resBlock(gan, inp		, n_inputChannels*2	, n_inputChannels*8		, reuse	, use_batch_norm	, filter_size=filter_size)
+		# ru2 = resBlock(gan, ru1		, n_inputChannels*16, n_inputChannels*64	, reuse	, use_batch_norm	, filter_size=filter_size)
+		# # inRu3 = ru2
+		# ru3 = resBlock(gan, ru2		, n_inputChannels*128, n_inputChannels*512	, reuse	, use_batch_norm	, filter_size=filter_size)
+		# inRu4 = ru3
+		# ru4 = resBlock(gan, inRu4	, n_inputChannels*128, n_inputChannels*32	, reuse, use_batch_norm		, filter_size=filter_size)
+		# ru5 = resBlock(gan, ru4		, n_inputChannels*16, 	n_inputChannels*4		, reuse, use_batch_norm		, filter_size=filter_size)
+		# # ru3 = resBlock(gan, inRu3	, n_inputChannels*16, n_inputChannels*4		, reuse, use_batch_norm		, filter_size=filter_size)
+		# ru6 = resBlock(gan, ru5		, n_inputChannels*2	, n_outputChannels		, reuse, False				, filter_size=filter_size, use_linear = True)
+		# resF = tf.reshape( ru6, shape=[-1, n_output] )
+		# resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
 
@@ -503,7 +517,6 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 		if dataDimension == 2:
 			shape = tf.shape(in_low)					# 16, 16x16x4
 			# print('in_low: {}'.format(in_low.shape)) 	# (?, 512); 512 = 16 x 16 x 2
-			# input('')
 			# slice: [beginning indices] [output size]
 			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_outputChannels*n_input/n_inputChannels)])
@@ -536,7 +549,8 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 		# d4,_ = gan.convolutional_layer(256, filter, lrelu, stride=[1], name="d_c4", reuse=reuse, batch_norm=use_batch_norm, train=train) # 256
 
 		shape=gan.flatten()
-		gan.fully_connected_layer(1, None, name="d_l5")
+		# gan.fully_connected_layer(1, None, name="d_l5")
+		gan.fully_connected_layer(1, tf.nn.relu, name="d_l5")
 
 		print("\tDOFs: %d " % gan.getDOFs())
 		return gan.y(), d1, d2, d3, d4
@@ -580,7 +594,7 @@ def disc_binclass_cond_tempo(in_high, n_t_channels=3, reuse=False, use_batch_nor
 ############################################gen_test###############################################################
 def gen_test(_in, reuse=False, use_batch_norm=False, train=None):
 	global rbId
-	print("\n\tGenerator-test")
+	print("\n\t Generator-test")
 	with tf.variable_scope("generator-test", reuse=reuse) as scope:
 		if dataDimension == 2:
 			_in = tf.reshape(_in, shape=[-1, tileSizeLow, tileSizeLow, n_inputChannels]) #NHWC
@@ -850,7 +864,7 @@ if not outputOnly:
 				ori_gen_optimizer = tf.train.AdamOptimizer(learning_rate, beta1=beta).minimize(ori_gen_loss_complete, var_list=g_var)
 	if use_spatialdisc:
 		with tf.control_dependencies(dis_update_ops):
-			#optimizer for discriminator, uses combined loss, can only change variables of the disriminator
+			# optimizer for discriminator, uses combined loss, can only change variables of the disriminator
 			disc_optimizer_adam = tf.train.AdamOptimizer(learning_rate, beta1=beta)
 			disc_optimizer = disc_optimizer_adam.minimize(disc_loss, var_list=d_var)
 
