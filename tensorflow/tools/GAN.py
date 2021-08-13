@@ -128,10 +128,10 @@ class GAN(object):
 			filter1 = [1,1,1]
 			
 		print("Residual Block:")
-		A,_ = self.convolutional_layer(s1, filter, activation_function, stride=[1], name=name+"_A", in_layer=in_layer, reuse=reuse, batch_norm=batch_norm, train=train)
-		B,_ = self.convolutional_layer(s2, filter, None               , stride=[1], name=name+"_B",                    reuse=reuse, batch_norm=batch_norm, train=train)
+		A, _ = self.convolutional_layer(s1, filter, activation_function, stride=[1], name=name+"_A", in_layer=in_layer, reuse=reuse, batch_norm=batch_norm, train=train)
+		B, _ = self.convolutional_layer(s2, filter, None               , stride=[1], name=name+"_B",                    reuse=reuse, batch_norm=batch_norm, train=train)
 		# shortcut connection
-		s,_ = self.convolutional_layer(s2, filter1, None              , stride=[1], name=name+"_s", in_layer=in_layer, reuse=reuse, batch_norm=batch_norm, train=train)
+		s, _ = self.convolutional_layer(s2, filter1, None              , stride=[1], name=name+"_s", in_layer=in_layer, reuse=reuse, batch_norm=batch_norm, train=train)
 		
 		self.layer = tf.add( B, s)
 		layer_lin = self.layer
