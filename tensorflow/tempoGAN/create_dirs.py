@@ -1,7 +1,7 @@
 import os
 
-axis = 1
-start_dest_folder = 9130 + axis * 100
+axis = 0
+start_dest_folder = 1000 + axis * 100
 n_sims = 30
 
 command_pre = "mkdir ../2ddata_sim/sim_"

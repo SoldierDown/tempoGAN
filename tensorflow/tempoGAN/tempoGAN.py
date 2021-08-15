@@ -146,13 +146,15 @@ ph.checkUnusedParams()
 
 useTempoD = False
 useTempoL2 = False
-if(kt > 1e-6):
-	useTempoD = True
-if(kt_l > 1e-6):
-	useTempoL2 = True
-if(kt > 1e-6 and kt_l > 1e-6):
-	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-	exit(1)
+
+use_spatialdisc = True
+# if(kt > 1e-6):
+# 	useTempoD = True
+# if(kt_l > 1e-6):
+# 	useTempoL2 = True
+# if(kt > 1e-6 and kt_l > 1e-6):
+# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+# 	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -1044,8 +1046,6 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 		for tileno in range(batch_xs.shape[0]):
 			batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
 			results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
-			# print('results: {}'.format(results.shape))
-			# input('hanging')
 			resultTiles.extend(results)
 		resultTiles = np.array(resultTiles)
 		if dataDimension == 2: # resultTiles may have a different size
@@ -1055,7 +1055,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 1, outPath = test_path,imagei
 			imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
 			resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
 		tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-		tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+		tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image, write_to_txt = True)
 		# tc.savePngsGrayscale(resultTiles, outPath, imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
 		# tc.savePngsGrayscale(batch_xs, outPath, imageCounter=(imageindex+frameMin), extra = 'ori_low_')
 
@@ -1354,6 +1354,7 @@ if not outputOnly and trainGAN:
 		
 		for iteration in range(trainingIters):
 			lrgs = max(0, iteration-(trainingIters//2)) # LR counter, start decay at half time... (if enabled) 
+			print('iterating {}/{}: {}%'.format(iteration, trainingIters, 100. * np.float32(iteration)/trainingIters))
 			run_options = None; run_metadata = None
 			if saveMD:
 				run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
