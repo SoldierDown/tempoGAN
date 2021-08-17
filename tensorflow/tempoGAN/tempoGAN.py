@@ -36,24 +36,13 @@ gen_models = []
 disc_models = []
 # ---------------------------------------------
 
-def getchar():
-	# Returns a single character from standard input
-	import os
-	ch = ''
-	if os.name == 'nt': # how it works on windows
-		import msvcrt
-		ch = msvcrt.getch()
-	else:
-		import tty, termios, sys
-		fd = sys.stdin.fileno()
-		old_settings = termios.tcgetattr(fd)
-		try:
-			tty.setraw(sys.stdin.fileno())
-			ch = sys.stdin.read(1)
-		finally:
-			termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-	if ord(ch) == 3: quit() # handle ctrl+C
-	return ch
+
+# t = [[[1, 2],[3, 4],[5, 6]],[[1, 2],[3, 4],[5, 6]],[[1, 2],[3, 4],[5, 6]],[[1, 2],[3, 4],[5, 6]]]
+# print('t shape: {}'.format(np.array(t).shape))
+# t = np.reshape(t, [2, 3, 4])
+# print(t)
+# exit()
+# layout: mag1, ang1, mag2, ang2, ..., mag_n, ang_n
 
 
 # initialize parameters / command line params
@@ -248,16 +237,26 @@ inputy = y.copy()
 # print('y shape: {}'.format(y.shape))
 # print('y[0] shape: {}'.format(y[0].shape))
 # input('')
-# if outputOnly:
-# 	input_shape = inputx.shape
-# 	for frame in range(input_shape[0]):
-# 		for z_dir in range(input_shape[1]):
-# 			for x_dir in range(input_shape[2]):
-# 				for y_dir in range(input_shape[3]):
-# 					vel = inputx[frame][z_dir][x_dir][y_dir]
-# 					if vel[0]!= 0. or vel[1] != 0. or vel[2] != 0. and frame == 0:
-# 						print('{},{} : {}'.format(x_dir, y_dir, vel))
-# input('')
+if not outputOnly:
+	print('inputx shape: {}'.format(inputx.shape))
+	inputx_shape = inputx.shape
+	for frame in range(inputx_shape[0]):
+		for z_dir in range(inputx_shape[1]):
+			for x_dir in range(inputx_shape[2]):
+				for y_dir in range(inputx_shape[3]):
+					vel = inputx[frame][z_dir][x_dir][y_dir]
+					if (vel[0]!= 0. or vel[1] != 0.) and frame == 0:
+						print('{},{} : {}'.format(x_dir, y_dir, vel))
+	print('y shape: {}'.format(y.shape))
+	y_shape = y.shape
+	for frame in range(y_shape[0]):
+		for z_dir in range(y_shape[1]):
+			for x_dir in range(y_shape[2]):
+				for y_dir in range(y_shape[3]):
+					vel = y[frame][z_dir][x_dir][y_dir]
+					if (vel[0]!= 0. or vel[1] != 0.) and frame == 0:
+						print('{},{} : {}, frame: {}'.format(x_dir, y_dir, vel, frame))
+	# input('')
 if not outputOnly:
 	print('y shape: {}'.format(y.shape))
 # print(inputx[np.nonzero(inputx)])
@@ -408,6 +407,15 @@ x = tf.placeholder(tf.float32, shape=[None, n_input])
 x_disc = tf.placeholder(tf.float32, shape=[None, n_input]) # 1024 = 16x16x4
 # real input for disc
 y = tf.placeholder(tf.float32, shape=[None, n_output])
+
+unit_mag = tf.constant([[1., 0.]]) # shape (1, 3)
+unit_ang = tf.constant([[0., 1.]]) # shape (1, 3)
+c_mag = tf.tile(unit_mag, [1, n_output//2]) # shape (3, 3)
+c_ang = tf.tile(unit_ang, [1, n_output//2]) # shape (3, 3)
+
+with tf.Session() as sess:
+    coeffs_mag, coeffs_ang = sess.run([c_mag, c_ang])
+
 print('n_input: {}'.format(n_input))
 print('n_output: {}'.format(n_output))
 
@@ -486,7 +494,7 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, filter_size=filter_size)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
+		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
@@ -645,9 +653,7 @@ train = tf.placeholder(tf.bool)
 if not outputOnly: #setup for training
 	gen_part = gen_model(x, use_batch_norm=bn, train=train)
 	if use_spatialdisc:
-		print('use spatialdisc')
 		disc, dy1, dy2, dy3, dy4 = disc_model(x_disc, y, use_batch_norm=bn, train=train)
-		print('1st done')
 		gen, gy1, gy2, gy3, gy4 = disc_model(x_disc, gen_part, reuse=True, use_batch_norm=bn, train=train)
 	if genValiImg > -1: 
 		sampler = gen_part
@@ -707,6 +713,25 @@ def tensorResample(value, pos, name='Resample'):
 			values_new = values_new + tf.gather_nd(value, cell_value_list[cell_idx]) * cell_weight_list[cell_idx]
 		return values_new  # shape (..., res_x2, res_x1, channels)
 
+def get_angle_loss(pred_y, real_y):
+	pred_y_reshape = tf.reshape(pred_y, [tileSizeHigh, tileSizeHigh, n_outputChannels])
+	real_y_reshape = tf.reshape(real_y, [tileSizeHigh, tileSizeHigh, n_outputChannels])
+	output_shape = pred_y_reshape.shape
+	# print('output_shape: {}'.format(output_shape))
+	total_cost = 0.
+	cnt = 0
+	for dimx in range(output_shape[0]):
+		for dimy in range(output_shape[1]):
+			pred_angle = pred_y_reshape[dimx][dimy][1]
+			real_angle = real_y_reshape[dimx][dimy][1]
+			total_cost += abs(pred_angle - real_angle)
+			cnt += 1
+			# print('pred ang: {}, real ang: {}'.format(pred_angle, real_angle))
+	return total_cost / cnt
+
+def get_vec_loss(pred_y, real_y):
+	pass
+
 if not outputOnly:
 	#for discriminator [0,1] output
 	if use_spatialdisc:
@@ -721,6 +746,11 @@ if not outputOnly:
 		# Enj[lambdaj |F(G(x))-F(y)|^2]
 		disc_loss_layer = k2_l1*tf.reduce_mean(tf.nn.l2_loss(dy1 - gy1)) + k2_l2*tf.reduce_mean(tf.nn.l2_loss(dy2 - gy2)) + k2_l3*tf.reduce_mean(tf.nn.l2_loss(dy3 - gy3)) + k2_l4*tf.reduce_mean(tf.nn.l2_loss(dy4 - gy4))
 		disc_loss = disc_loss_disc * weight_dld + disc_loss_gen
+		print('dy1 shape: {}'.format(dy1.shape))
+		print('dy2 shape: {}'.format(dy2.shape))
+		print('dy3 shape: {}'.format(dy3.shape))
+		print('dy4 shape: {}'.format(dy4.shape))
+		input('')
 		# loss of the generator: -En[log(Ds(x,G(x)))]
 		gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=gen, labels=tf.ones_like(gen)))
 	else:
@@ -730,12 +760,30 @@ if not outputOnly:
 	# additional generator losses
 	gen_l2_loss = tf.nn.l2_loss(y - gen_part)
 	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) # use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
-
+	
+	gen_mag_loss = tf.reduce_mean(tf.abs(coeffs_mag*y - coeffs_mag*gen_part))
+	gen_angle_loss = tf.reduce_mean(tf.abs(coeffs_ang*y - coeffs_ang*gen_part))
+	
+	# print('tf shape: {}'.format(coeffs_mag.shape))
+	# print('tf shape: {}'.format(y.shape))
+	# print('tf shape: {}'.format((coeffs_mag * y).shape))
+	# input('')
+	# gen_angle_loss = get_angle_loss(y, gen_part)
+	
+	# gen_vec_loss = get_vec_loss(y, gen_part)
+	# 1st component: mag
+	# 2nd component: ang
+	# gen_l1_loss = tf.reduce_mean(tf.nn.l2_loss(y - gen_part))
+	# print('y shape: {}'.format(y.shape))	# , 8192 = 2 * 64 * 64
 	# uses sigmoid cross entropy and l1 - see cGAN paper
+	coeff = 0.001
+	gen_l1_loss = coeff * gen_angle_loss + (1. - coeff) * gen_mag_loss
 	gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
-	print(gen_loss)
-	print(disc_loss_layer)
+	
+	# print(gen_loss)
+	# print(disc_loss_layer)
 
+	# gen_loss_complete = gen_angle_loss
 	# set up decaying learning rate, if enabled
 	lr_global_step = tf.Variable(0, trainable=False)
 	learning_rate_scalar = learning_rate
@@ -1040,24 +1088,25 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 	inv_dx = simSizeHigh
 	print('dx: {}, dx_inv: {}'.format(dx, inv_dx))
 
-	min_vx = 1e5 
-	max_vx = -1e5
-	min_vy = 1e5
-	max_vy = -1e5
+	min_mag = 1e5 
+	max_mag = -1e5
+	min_ang = 1e5
+	max_ang = -1e5
 	for i in range(img.shape[0]):
 		for j in range(img.shape[1]):
-			vx = img[i][j][0]
-			vy = img[i][j][1]
-			if vx > max_vx:
-				max_vx = vx
-			if vx < min_vx:
-				min_vx = vx
-			if vy > max_vy:
-				max_vy = vy
-			if vy < min_vy:
-				min_vy = vy
-	
-	print('vel range: {},{} and {},{}'.format(min_vx, min_vy, max_vx, max_vy))
+			v_mag = img[i][j][0]
+			v_ang = img[i][j][1]
+			if v_mag < min_mag:
+				min_mag = v_mag
+			elif v_mag > max_mag:
+				max_mag = v_mag
+			
+			if v_ang < min_ang:
+				min_ang = v_ang
+			elif v_ang > max_ang:
+				max_ang = v_ang
+	print('v_mag range: {} to {}'.format(min_mag, max_mag))
+	print('v_ang range: {} to {}'.format(min_ang, max_ang))	 
 	# input('')
 
 	mass_grid = img.copy()
@@ -1623,7 +1672,7 @@ if not outputOnly and trainGAN:
 						_, gen_cost, layer_cost, gen_l1_cost, summary, gen_l2_cost = result_list
 					else:
 						_, gen_l1_cost, gen_l2_cost = result_list
-						# gen_cost = gen_l1_cost
+						gen_cost = gen_l1_cost
 					gen_tem_cost = 0
 					gen_tem_cost_l = 0
 				avgL1Cost_gen += gen_l1_cost

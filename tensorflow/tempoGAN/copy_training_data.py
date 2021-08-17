@@ -1,20 +1,25 @@
 import os
 
 res = 256
-start_sim_no = 2000
-start_dest_folder = 1000
+start_sim_no = 6000
+start_dest_folder = 2000
 n_sims = 30
 last_frame = 120
 
 
 use_wa = True
+with_extra = False
 
 folder = ''
 if use_wa:
-    folder = 'training_data_downsampled_wa'
+    folder = 'training_data_downsampled/wa'
 else:
-    folder = 'training_data_downsampled_p2g'
-    start_dest_folder += 1000
+    folder = 'training_data_downsampled/p2g'
+
+if with_extra:
+    folder += '/with_extra'
+else:
+    folder += '/no_extra'
 
 # start_sim_no = 2000
 # n_sims = 30
@@ -42,6 +47,7 @@ for sim in range(n_sims):
 
     print('copying {} to {}'.format(cur_sim_no, cur_dest_folder))
     full_command = command_pre + str(cur_sim_no) +command_mid + str(cur_dest_folder) + command_post
+    print(full_command)
     os.system(full_command)
 
     cur_dest_folder += 1

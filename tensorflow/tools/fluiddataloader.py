@@ -33,7 +33,6 @@ class FluidDataLoader(object):
 				array_y=None, filename_y=None, func_y=None, data_fraction=1.,
 				shape=None, shape_y=None, collapse_z=True, shuffle_on_load=False,
 				multi_file_list=None, multi_file_list_y=None, multi_file_idxOff=None, multi_file_idxOff_y=None,
-				postproc_func=None, postproc_func_y=None,
 				np_load_string=None , np_load_string_y=None , oldNamingScheme=False):
 		""" Constructor , arguments:
 			print_info: debugging info , <=0 off, 1 some info, 2 full
@@ -54,9 +53,6 @@ class FluidDataLoader(object):
 			multi_file_idxOff: list of file index offsets for files multi_file_list
 					can be used to load files with different index into same data entry
 			multi_file_idxOff_y: " analogous for y
-			postproc_func: function to be called for every data sample, can be used to post-process
-					data in a custom way
-			postproc_func_y: " analogous for y
 			array_y: optional, label data as array, 1 entry per dir
 			filename_y: optional, filenames for label data; needs # placeholder if used with wildcard
 			func_y: optional, labelling func, called with sim index, filename and file index for every loeaded entry
@@ -95,8 +91,6 @@ class FluidDataLoader(object):
 		self.multi_file_idxOff   = multi_file_idxOff  
 		# print('low multi file idxOff: {}'.format(self.multi_file_idxOff))
 		self.multi_file_idxOff_y = multi_file_idxOff_y
-		self.postproc_func   = postproc_func  
-		self.postproc_func_y = postproc_func_y
 		# input('')
 
 		# y data for labeling x
@@ -277,6 +271,53 @@ class FluidDataLoader(object):
 		#print("Dim "+format(dim)+ " for " + format(shape) )
 		return dim
 
+	def postproc_func(self, x):
+		print('processing low res data')
+		x_shape = x.shape
+		x_copy = x.copy()
+		axis_vec = np.array([1., 0.])
+		for frameid in range(x_shape[0]):
+			for dimx in range(x_shape[1]):
+				for dimy in range(x_shape[2]):
+					cur_vel = np.array(x[frameid][dimx][dimy])
+					vel_mag = np.linalg.norm(cur_vel)
+					if vel_mag == 0.:
+						vel_ang = 0.
+						x_copy[frameid][dimx][dimy] = [vel_mag, vel_ang]
+					else:
+						dot_prod = np.dot(cur_vel, axis_vec)/(vel_mag)
+						vel_ang = np.arccos(dot_prod)
+						if cur_vel[1] < 0.:
+							vel_ang += np.pi
+						vel_ang /= (2. * np.pi)
+						x_copy[frameid][dimx][dimy] = [vel_mag, vel_ang]
+						# print('vel mag: {}, vel ang: {}'.format(vel_mag, vel_ang))
+		return x_copy
+	
+	def postproc_func_y(self, y):
+		print('processing high res data')
+		y_shape = y.shape
+		y_copy = y.copy()
+		axis_vec = np.array([1., 0.])
+		for frameid in range(y_shape[0]):
+			for dimx in range(y_shape[1]):
+				for dimy in range(y_shape[2]):
+					cur_vel = np.array(y[frameid][dimx][dimy])
+					vel_mag = np.linalg.norm(cur_vel)
+					if vel_mag == 0.:
+						vel_ang = 0.
+						y_copy[frameid][dimx][dimy] = [vel_mag, vel_ang]
+					else:
+						dot_prod = np.dot(cur_vel, axis_vec)/(vel_mag)
+						vel_ang = np.arccos(dot_prod)
+						if cur_vel[1] < 0.:
+							vel_ang += np.pi
+						vel_ang /= (2. * np.pi)
+						y_copy[frameid][dimx][dimy] = [vel_mag, vel_ang]
+						# print('vel mag: {}, vel ang: {}'.format(vel_mag, vel_ang))
+		return y_copy
+	
+
 	def removeZComponent(self,x):
 		""" Optional, and 2D only: remove Z entry from 3d vec fields
 		"""
@@ -375,9 +416,8 @@ class FluidDataLoader(object):
 					# print('current low res total loaded data shape: {}'.format(fx.shape))
 			# input('')
 			# apply post-processing function (if given)
-			if self.postproc_func is not None:
-				# not this way
-				fx = self.postproc_func(fx, self)
+			print('applying post-processing function')
+			fx = self.postproc_func(fx)
 
 			# ... and the same again for y
 			if self.have_y_npz:
@@ -403,8 +443,7 @@ class FluidDataLoader(object):
 						fy = np.append( fy, _fy , axis=len(fy.shape)-1 )
 						# print('current high res total loaded data shape: {}'.format(fy.shape))
 				# input('')
-				if self.postproc_func_y is not None:
-					fy = self.postproc_func_y(fy, self)
+				fy = self.postproc_func_y(fy)
 			# fx = self.removeZComponent(fx) # optional!
 
 			# intialize x/y arrays upon first use

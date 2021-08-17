@@ -1135,8 +1135,10 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 				for j in range(img_h):
 					x.append(img_half_dx + i * img_dx)
 					y.append(img_half_dx + j * img_dx)
-					cur_u = img[i][j][0]
-					cur_v = img[i][j][1]
+					v_mag = img[i][j][0]
+					v_ang = img[i][j][1]
+					cur_u = v_mag * np.cos(v_ang)
+					cur_v = v_mag * np.sin(v_ang)
 					if cur_u > abs(1) or cur_v > abs(1):
 						ave_i += i
 						ave_j += j
@@ -1194,6 +1196,7 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 			img_half_dx = .5 * img_dx
 			color_map  = Image.new( mode = "RGB", size = (img_w, img_h) )
 			arr = np.array(color_map)
+			min_mag, max_mag, min_ang, max_ang = 1e5, -1e5, 1e5, -1e5
 			min_u, max_u, min_v, max_v = 1e5, -1e5, 1e5, -1e5
 			# Create an empty image
 			color_map = np.zeros((img_w, img_h, channels), dtype=np.uint8)
@@ -1202,26 +1205,41 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 			# Set the RGB values
 			for j in range(color_map.shape[1] - 1, -1, -1):
 				for i in range(color_map[0].shape[0]):
-					u, v = img[i][j][0], img[i][j][1]
-					if u > max_u:
-						max_u = u
+					# print('np cos(pi/3): {}'.format(np.cos(60/180*np.pi))) # right representation
+					v_mag, v_ang = img[i][j][0], img[i][j][1] * np.pi * 2.
+					if v_mag < min_mag:
+						min_mag = v_mag
+					elif v_mag > max_mag:
+						max_mag = v_mag
+			
+					if v_ang < min_ang:
+						min_ang = v_ang
+					elif v_ang > max_ang:
+						max_ang = v_ang
+					
+					u, v = v_mag * np.cos(v_ang), v_mag * np.sin(v_ang)
+
 					if u < min_u:
 						min_u = u
-					if v > max_v:
-						max_v = v
+					elif u > max_u:
+						max_u = u
 					if v < min_v:
 						min_v = v
+					elif v > max_v:
+						max_v = v
 					r, g, b = np.int(255 - np.abs(u)*255/assumed_max), 255, np.int(255 - np.abs(v)*255/assumed_max)
 					color_map[j][i][0] = r
 					color_map[j][i][1] = g
 					color_map[j][i][2] = b
+			print('v_mag range: {} to {}'.format(min_mag, max_mag))
+			print('v_ang range: {} to {}'.format(min_ang, max_ang))
+			print('vel range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))	
 			tmp_map = color_map.copy()
 			for i in range(color_map.shape[0]):
 				for j in range(color_map.shape[1]):
 					tmp_map[i][j] = color_map[color_map.shape[0] - 1 - i][j]
 			color_map = tmp_map
 			
-			print('vel range: {},{} to {},{}'.format(min_u, min_v, max_u, max_v))
 			# Save the image
 			scipy.misc.imsave(path + extra + 'rgb_img_{:04d}.png'.format(imageCounter*noImages+image), color_map)
 
