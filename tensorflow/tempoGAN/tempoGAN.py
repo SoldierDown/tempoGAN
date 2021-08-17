@@ -148,13 +148,13 @@ useTempoD = False
 useTempoL2 = False
 
 use_spatialdisc = True
-# if(kt > 1e-6):
-# 	useTempoD = True
-# if(kt_l > 1e-6):
-# 	useTempoL2 = True
-# if(kt > 1e-6 and kt_l > 1e-6):
-# 	print("ERROR: temporal loss can only be either discriminator or L2, not both")
-# 	exit(1)
+if(kt > 1e-6):
+	useTempoD = True
+if(kt_l > 1e-6):
+	useTempoL2 = True
+if(kt > 1e-6 and kt_l > 1e-6):
+	print("ERROR: temporal loss can only be either discriminator or L2, not both")
+	exit(1)
 
 # initialize
 upRes	  		= 4 # fixed for now...
@@ -418,7 +418,7 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
 		inRu3 = ru2
 		ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
+		ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = False)
 		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 

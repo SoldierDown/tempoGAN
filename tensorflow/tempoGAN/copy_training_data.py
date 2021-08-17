@@ -1,16 +1,21 @@
 import os
 
 res = 256
-start_sim_no = 5000
-axis = 0
-start_dest_folder = 1000 + 100 * axis
+start_sim_no = 6000
+axis = 2
 n_sims = 30
+start_dest_folder = 3048
 last_frame = 100
+
+use_wa = True
 
 copy_cmd ='cp '
 copy_from_prev = '/nfs/hsu/repo/MPM/mpm/output-2d-'
 copy_to_prev = '../2ddata_sim/sim_'
 
+mode = 'p2g'
+if use_wa:
+    mode = 'wa'
 
 axis_p = 'rho'
 if axis == 1:
@@ -19,7 +24,7 @@ elif axis == 2:
     axis_p = 'py'
 
 command_pre = 'cp /nfs/hsu/repo/MPM/mpm/output-2d-'
-command_mid = '-256x256/axis_field/' + axis_p + '_downsampled/p2g/no_extra/* ../2ddata_sim/sim_'
+command_mid = '-256x256/axis_field/' + axis_p + '_downsampled/' + mode + '/no_extra/* ../2ddata_sim/sim_'
 command_post = '/'
 
 cur_dest_folder = start_dest_folder

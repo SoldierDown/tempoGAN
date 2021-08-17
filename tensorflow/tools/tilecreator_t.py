@@ -1072,9 +1072,8 @@ def savePngsGrayscale(tiles, path, imageCounter=0, tiles_in_image=[1,1], channel
 	ss /= (cnt - 1)
 	pos_ss /= (pos_cnt - 1)
 	print('############################')
-	print('min_v: {}, max_v: {}'.format(min_v, max_v))
-	print('mean_v: {}, s2: {}'.format(mean_v, ss))
-	print('pos_mean_v: {}, pos_s2: {}'.format(pos_mean_v, pos_ss))
+	print('min: {}, max: {}'.format(min_v, max_v))
+	print('mean: {}, s2: {}'.format(mean_v, ss))
 	print('############################')
 	noImages = len(tiles)//tilesInImage
 	print('noImages: {}'.format(noImages))
