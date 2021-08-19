@@ -46,3 +46,4 @@ tensorflow/2ddata_sim
 *.exe
 *.out
 *.app
+*.zip

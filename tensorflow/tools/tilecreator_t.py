@@ -1164,7 +1164,7 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 			print('ERROR: number of tiles does not match tiles per image')
 			return
 		tiles = np.asarray(tiles)
-		# print('tiles: {}'.format(tiles.shape))
+		print('tiles: {}'.format(tiles.shape))
 		noImages = len(tiles)//tilesInImage # only 1 image
 		
 		for image in range(noImages):

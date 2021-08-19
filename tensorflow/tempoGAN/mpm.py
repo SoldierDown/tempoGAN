@@ -78,7 +78,7 @@ class Simulator:
     def __init__(self):
         self.wall_width = 0.1
         self.radius = 0.1
-        self.n = 256
+        self.n = 64
         self.n_cells = self.n**2
         self.npc = 4
         self.n_particles = np.int(self.npc * math.pi * self.radius**2 * self.n_cells)
@@ -114,12 +114,15 @@ class Simulator:
         self.add_object(np.array([0.5, 0.25]), self.radius, np.array([0., -3.]))
         self.save()
         self.frame = 0
-        self.n_steps = 10000
+        self.n_steps = 1000
+
+        self.low_res = np.zeros(self.n_cells * 2).reshape(1, self.n, self.n, 2)
         
 
     def reset_grid_vars(self):
         self.grid_mass = np.zeros(self.n_cells).reshape(self.n, self.n)
         self.grid_vel = np.zeros(self.n_cells * 2).reshape(self.n, self.n, 2)
+        self.low_res = np.zeros(self.n_cells * 2).reshape(1, self.n, self.n, 2)
     
     def update_particle_weights(self):
         for pid in range(self.n_particles):
@@ -214,10 +217,18 @@ class Simulator:
     def collided(self, posx, posy):
         ww = self.wall_width
         return posx < ww or posx > 1. - ww or posy < ww or posy > 1. - ww
-
-    def g2p(self):
-        flip = 0.95
+        
+    def g2p(self, move=True):
         self.apply_force()
+        self.move_particles(move)
+
+    def save_to_generate(self):
+        for i in range(self.n):
+            for j in range(self.n):
+                self.low_res[0][i][j] = self.grid_vel_star[i][j]
+
+    def move_particles(self, move=True):
+        flip = 0.95
         for pid in range(self.n_particles):
             p = self.particles[pid]
             closest_cell = p.closest_cell
@@ -243,19 +254,21 @@ class Simulator:
             else:
                 pass
             p.vel = V_flip * flip + V_pic * (1.-flip)
-            p.x += V_pic * self.dt
+            if move:
+                p.x += V_pic * self.dt
+        self.save_to_generate()
 
-    def advance_step(self):
+    def advance_step(self, move=True):
         self.reset_grid_vars()
         self.update_particle_weights()
         self.p2g()
         self.update_material_state()
-        self.g2p()
+        self.g2p(move)
     
     def run(self):
         for step in range(self.n_steps):
-            self.advance_step()
-            if step % 100 == 0:
+            self.advance_step(move=True)
+            if step % 10 == 0:
                 self.save(self.frame)
                 self.frame += 1
 
@@ -291,6 +304,7 @@ class Simulator:
             im.save(self.output_path + '/init.bmp', quality=95)
         else: 
             im.save(self.output_path + '/{:04d}'.format(step)+'.bmp', quality=95)
+    
 
 
 simulator = Simulator()

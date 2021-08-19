@@ -9,6 +9,350 @@
 #
 #******************************************************************************
 
+import numpy as np
+import math
+import random
+from PIL import Image, ImageDraw
+import os
+
+class Particle:
+    def __init__(self, pos=np.array([0., 0.]), vel=np.array([0., 0.])):
+        self.eos = True
+        self.density = 1.
+        self.bulk_modulus = 1.
+        self.gamma = 7.
+        self.mass = 1.
+        self.volume = 1.
+        self.x = pos
+        self.vel = vel
+        self.F = np.array([ [1., 0.],
+                            [0., 1.]])
+        self.Jp = 1.
+        self.closest_cell = np.array([0, 0])
+        self.weights = np.array([   [0., 0., 0.],
+                                    [0., 0., 0.],
+                                    [0., 0., 0.]])
+        self.dweights = np.array([   [0., 0., 0.],
+                                    [0., 0., 0.],
+                                    [0., 0., 0.]])
+
+    def update_weights(self, grid_res):
+        dx = 1. / np.float32(grid_res)
+        self.closest_cell = self.get_closest_cell(grid_res)
+        X_eval = self.x - (self.get_cell_center(grid_res, self.closest_cell) - dx)
+        for axis in range(2):
+            one_over_dx = np.float32(grid_res)
+            axis_x = X_eval[axis]
+            self.compute_weight(axis_x * one_over_dx, one_over_dx, axis)
+    
+    def get_closest_cell(self, grid_res):
+        inv_dx = np.float32(grid_res)
+        dx = 1. / np.float32(grid_res)
+        i, j = math.floor(self.x[0] * inv_dx), math.floor(self.x[1] * inv_dx)
+        return np.array([i, j])
+
+    def get_cell_center(self, grid_res, cell_idx):
+        dx = 1. / np.float32(grid_res)
+        half_dx = .5 * dx
+        posx, posy = half_dx + cell_idx[0] * dx, half_dx + cell_idx[1] * dx
+        return np.array([posx, posy])
+
+    def compute_weight(self, x, one_over_dx, k):
+        self.weights[0][k]=abs(0.5*x*x-1.5*x+1.125)
+        self.dweights[0][k]=(x-1.5)*one_over_dx
+        x-=1.
+        self.weights[1][k]=abs(-x*x+.75)
+        self.dweights[1][k]=(-2.)*x*one_over_dx
+        x-=1.
+        self.weights[2][k]=abs(.5*x*x+1.5*x+1.125)
+        self.dweights[2][k]=(x+1.5)*one_over_dx
+
+    def get_weight(self, neighbor_idx):
+        cur_weight = 1.
+        for i in range(2):
+            cur_weight *= self.weights[neighbor_idx[i]][i]
+        return cur_weight
+
+    def get_weight_gradient(self, neighbor_idx):
+        wg=np.array([1., 1.])
+        for i in range(2):
+            for j in range(2):
+                if i==j:
+                    wg[i] *= self.dweights[neighbor_idx[j]][j]
+                else:
+                    wg[i] *= self.weights[neighbor_idx[j]][j]
+        return wg
+
+    def precompute_material_state(self):
+        pass
+
+class Simulator:
+    def __init__(self):
+        self.wall_width = 0.1
+        self.radius = 0.1
+        self.n = 64
+        self.n_cells = self.n**2
+        self.npc = 4
+        self.n_particles = np.int(self.npc * math.pi * self.radius**2 * self.n_cells)
+        
+
+        self.output_path = './output_%04d' % self.n
+        os.system('rm -rf ' + self.output_path + '/*')
+        
+        if not os.path.exists(self.output_path):
+            os.system('mkdir ' + self.output_path)
+        
+        self.dt = 1e-3
+        self.frame_dt = 1e-3
+        self.dx = 1.0 / self.n
+        self.inv_dx = 1.0 / self.dx
+
+        # Material properties
+        self.particle_mass = 1.0
+        self.vol = 1.0                       # Particle Volume
+        self.hardening = 10.0               # Snow hardening factor
+        self.E = 100              # Young's Modulus
+        self.nu = 0.2             # Poisson ratio
+
+        
+        # Initial Lamé parameters
+        self.mu_0 = self.E / (2 * (1 + self.nu))
+        self.lam_0 = self.E * self.nu / ((1+self.nu) * (1 - 2 * self.nu))
+        self.mu = self.mu_0
+        self.lam = self.lam_0
+        self.particles = []
+        self.grid_mass = np.zeros(self.n_cells).reshape(self.n, self.n)
+        self.grid_vel = np.zeros(self.n_cells * 2).reshape(self.n, self.n, 2)
+        self.grid_vel_star = np.zeros(self.n_cells * 2).reshape(self.n, self.n, 2)
+        self.add_object(np.array([0.5, 0.25]), self.radius, np.array([0., -3.]))
+        self.save()
+        self.frame = 0
+        self.n_steps = 1000
+
+        self.low_res = np.zeros(self.n_cells * 2).reshape(1, self.n, self.n, 2)
+        self.upRes = 4
+        self.high_res = np.zeros(self.n_cells * 2 * (self.upRes**2)).reshape(self.n * self.upRes, self.n * self.upRes, 2)
+
+    def reset_grid_vars(self):
+        self.grid_mass = np.zeros(self.n_cells).reshape(self.n, self.n)
+        self.grid_vel = np.zeros(self.n_cells * 2).reshape(self.n, self.n, 2)
+        self.low_res = np.zeros(self.n_cells * 2).reshape(1, self.n, self.n, 2)
+    
+    def update_particle_weights(self, upscaling=1):
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            p.update_weights(self.n * upscaling)
+
+    def p2g(self):
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            closest_cell = p.closest_cell
+            p_mass = p.mass
+            p_vel = p.vel
+            for di in range(-1, 2):
+                for dj in range(-1, 2):
+                    d_idx = np.array([di, dj])
+                    cur_cell = closest_cell + d_idx
+                    if self.oob(cur_cell):
+                        print('Out of boundary in p2g')
+                    else:
+                        cur_weight = p.get_weight(np.array([di+1, dj+1]))
+                        self.grid_mass[cur_cell[0]][cur_cell[1]] += cur_weight * p_mass
+                        self.grid_vel[cur_cell[0]][cur_cell[1]] += cur_weight * p_mass * p_vel
+        
+        for i in range(self.n):
+            for j in range(self.n):
+                g_mass = self.grid_mass[i][j]
+                if g_mass > 0.:
+                    self.grid_vel[i][j] /= g_mass
+
+    def update_material_state(self):
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            if not p.eos:
+                p.precompute_material_state()
+
+    def apply_force(self):
+        gravity = np.array([0., -2.])
+        grid_force = np.zeros(self.n_cells * 2).reshape(self.n, self.n, 2)
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            p_mass = p.mass
+            p_vel = p.vel
+            closest_cell=p.closest_cell
+            eos_coefficient=0.
+            V0=p.volume; 
+            if p.eos:
+                eos_coefficient=V0/p.density*p.bulk_modulus*(p.density**(p.gamma - 1.))
+            else:
+                pass
+            
+            for di in range(-1, 2):
+                for dj in range(-1, 2):
+                    d_idx = np.array([di, dj])
+                    cur_cell = closest_cell + d_idx
+                    if self.oob(cur_cell):
+                        print('Out of boundary in apply_force')
+                    else:
+                        cur_weight = p.get_weight(np.array([di+1, dj+1]))
+                        cur_wg = p.get_weight_gradient(np.array([di+1, dj+1]))
+                        body_force = p_mass * gravity * cur_weight
+                        inner_force = eos_coefficient * cur_wg
+                        grid_force[cur_cell[0]][cur_cell[1]] += body_force
+                        grid_force[cur_cell[0]][cur_cell[1]] += inner_force
+        dt = self.dt
+        for i in range(self.n):
+            for j in range(self.n):
+                g_mass = self.grid_mass[i][j]
+                if g_mass > 0.:
+                    self.grid_vel_star[i][j] = self.grid_vel[i][j] + dt * grid_force[i][j] / g_mass
+        self.grid_based_collision()
+
+    def grid_based_collision(self):
+        dx = 1. / self.n
+        half_dx = .5 * dx
+        for i in range(self.n):
+            for j in range(self.n):
+                cur_cell = np.array([i, j])
+                posx, posy = half_dx + i * dx, half_dx + j * dx
+                if self.collided(posx, posy):
+                    self.grid_vel_star[i][j] = np.array([0., 0.])
+
+    def outer_product(self, col, row):
+        mat = np.array([[0., 0.], [0., 0.]])
+        for i in range(2):
+            for j in range(2):
+                mat[i][j] = col[i] * row[j]
+        return mat
+
+    def trace(self, mat):
+        return mat[0][0] + mat[1][1]
+
+    def collided(self, posx, posy):
+        ww = self.wall_width
+        return posx < ww or posx > 1. - ww or posy < ww or posy > 1. - ww
+        
+    def g2p(self, af=True, move=True):
+        if af:
+            self.apply_force()
+        self.move_particles(move)
+
+    def save_to_generate(self):
+        for i in range(self.n):
+            for j in range(self.n):
+                self.low_res[0][i][j] = self.grid_vel_star[i][j]
+
+    def move_in_high(self):
+        self.update_particle_weights(upscaling=self.upRes)
+        flip = 0.95
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            closest_cell = p.closest_cell
+            V_pic = np.array([0., 0.])
+            sum_w = 0.
+            for di in range(-1, 2):
+                for dj in range(-1, 2):
+                    d_idx = np.array([di, dj])
+                    cur_cell = closest_cell + d_idx
+                    if self.oob(cur_cell, upscaling=self.upRes):
+                        print('Out of boundary in g2p')
+                    else:
+                        cur_weight = p.get_weight(np.array([di+1, dj+1]))
+                        sum_w += cur_weight
+                        V_grid = self.high_res[cur_cell[0]][cur_cell[1]]
+                        V_pic += cur_weight * V_grid
+            # print('sum w: {}'.format(sum_w))
+            p.vel = V_pic
+            p.x += V_pic * self.dt
+        self.save(step=self.frame, is_high=True)
+        self.frame += 1
+
+    def move_particles(self, move=True):
+        flip = 0.95
+        for pid in range(self.n_particles):
+            p = self.particles[pid]
+            closest_cell = p.closest_cell
+            V_pic = np.array([0., 0.])
+            V_flip = p.vel
+            grad_Vp = np.array([[0., 0.], [0., 0.]])
+            for di in range(-1, 2):
+                for dj in range(-1, 2):
+                    d_idx = np.array([di, dj])
+                    cur_cell = closest_cell + d_idx
+                    if self.oob(cur_cell):
+                        print('Out of boundary in g2p')
+                    else:
+                        cur_weight = p.get_weight(np.array([di+1, dj+1]))
+                        cur_wg = p.get_weight_gradient(np.array([di+1, dj+1]))
+                        V_grid = self.grid_vel_star[cur_cell[0]][cur_cell[1]]
+                        delta_V_grid = self.grid_vel_star[cur_cell[0]][cur_cell[1]] - self.grid_vel[cur_cell[0]][cur_cell[1]]
+                        V_pic += cur_weight * V_grid
+                        V_flip += cur_weight * delta_V_grid
+                        grad_Vp += self.outer_product(V_grid, cur_wg)
+            if p.eos:
+                p.density /= 1. + self.dt * self.trace(grad_Vp)
+            else:
+                pass
+            p.vel = V_flip * flip + V_pic * (1.-flip)
+            if move:
+                p.x += V_pic * self.dt
+        self.save_to_generate()
+
+    def advance_step(self, move=True):
+        self.reset_grid_vars()
+        self.update_particle_weights()
+        self.p2g()
+        self.update_material_state()
+        self.g2p(move)
+    
+    def run(self):
+        for step in range(self.n_steps):
+            self.advance_step(move=True)
+            if step % 10 == 0:
+                self.save(self.frame)
+                self.frame += 1
+
+    def oob(self, cell_idx, upscaling=1):
+        return cell_idx[0]<0 or cell_idx[0]>=self.n*upscaling or cell_idx[1]<0 or cell_idx[1]>=self.n*upscaling
+    
+    def add_object(self, center, radius, vel):
+        n_particles = self.n_particles
+        for i in range(n_particles):
+            posx, posy = (2.*random.random()-1.) * radius , (2.*random.random()-1.) * radius
+            dis = math.sqrt(posx**2 + posy**2)
+            while dis > radius:
+                posx, posy = (2.*random.random()-1.) * radius , (2.*random.random()-1.) * radius
+                dis = math.sqrt(posx**2 + posy**2)
+            p = Particle(np.array([posx, posy]) + center, vel)
+            self.particles.append(p)
+
+    def save(self, step=-1, is_high=False):
+        print('saving frame {}'.format(step))
+        n_particles = self.n_particles
+        w = 2048
+        h = 2048
+        # print('# particles: {}'.format(n_particles))
+        im = Image.new('RGB', (w, h), (0, 0, 0))
+        draw = ImageDraw.Draw(im)
+        e_radius = 20
+        for i in range(n_particles):
+            p = self.particles[i]
+            pos = p.x
+            draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + e_radius, h - h * pos[1] + e_radius), fill=(255, 255, 255), outline=(255, 255, 255))
+	    	# draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+        if step == -1:
+            if is_high:
+                im.save(self.output_path + '/init.bmp', quality=95)
+            else:
+                im.save(self.output_path + '/init_high.bmp', quality=95)
+        else: 
+            if is_high:
+                im.save(self.output_path + '/{:04d}_high'.format(step)+'.bmp', quality=95)
+            else:
+                im.save(self.output_path + '/{:04d}'.format(step)+'.bmp', quality=95)
+
+
+
 import time
 import os
 import shutil
@@ -144,7 +488,13 @@ move_particles_only	= int(ph.getParam( "moveOnly",   	  		True ))>0
 view_only			= int(ph.getParam( "viewOnly",   	  		True ))>0 		
 
 
+
+
 mlmpm				= int(ph.getParam( "mlmpm",   	  			True ))>0 		
+
+
+
+mlmpm = True
 
 if move_particles_only:
 	useDensity = False
@@ -212,45 +562,46 @@ if (outputOnly):
 		simSizeHigh = 256
 		tileSizeLow = 64
 
-if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim = dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
-else:
-	# go this way
-	lowparalen = len(mfl)
-	highparalen = len(mfh)
-	mfl_tmp= np.append(mfl, mfl)
-	mfl= np.append(mfl_tmp, mfl)
-	mol = np.append(np.zeros(lowparalen), np.ones(lowparalen))
-	mol = np.append(mol, np.ones(lowparalen)*2)
-	mfh_tmp = np.append(mfh, mfh)
-	mfh= np.append(mfh_tmp, mfh)
-	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
-	moh = np.append(moh, np.ones(highparalen)*2)
-	print('lowparalen: {}'.format(lowparalen))
-	print('highparalen: {}'.format(highparalen))
-	print('mfl: {}'.format(mfl))
-	print('mol: {}'.format(mol))
-	print('mfh: {}'.format(mfh))
-	print('moh: {}'.format(moh))
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	print('done creating tiles')
-	floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
-	'''
-	collapse_z: 0
-	filename: velocity_low_%04d.uni
-	high filename: velocity_high_%04d.uni
-	multi_file_list: ['velocity' 'density' 'velocity' 'density' 'velocity' 'density']
-	multi_file_idxOff: [0. 0. 1. 1. 2. 2.]
-	multi_file_list_y: ['velocity' 'velocity' 'velocity']
-	multi_file_idxOff_y: [0. 1. 2.]
-	'''
-	print('done loading data')
-if useDataAugmentation:
-	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
-inputx, y, xFilenames  = floader.get()
-if view_only:
-	inputy = y.copy()
+if not mlmpm:
+    if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
+	    tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim = dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
+	    floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
+    else:
+	    # go this way
+	    lowparalen = len(mfl)
+	    highparalen = len(mfh)
+	    mfl_tmp= np.append(mfl, mfl)
+	    mfl= np.append(mfl_tmp, mfl)
+	    mol = np.append(np.zeros(lowparalen), np.ones(lowparalen))
+	    mol = np.append(mol, np.ones(lowparalen)*2)
+	    mfh_tmp = np.append(mfh, mfh)
+	    mfh= np.append(mfh_tmp, mfh)
+	    moh = np.append(np.zeros(highparalen), np.ones(highparalen))
+	    moh = np.append(moh, np.ones(highparalen)*2)
+	    print('lowparalen: {}'.format(lowparalen))
+	    print('highparalen: {}'.format(highparalen))
+	    print('mfl: {}'.format(mfl))
+	    print('mol: {}'.format(mol))
+	    print('mfh: {}'.format(mfh))
+	    print('moh: {}'.format(moh))
+	    tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
+	    print('done creating tiles')
+	    floader = FDL.FluidDataLoader( collapse_z=collapse_z, print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
+	    '''
+	    collapse_z: 0
+	    filename: velocity_low_%04d.uni
+	    high filename: velocity_high_%04d.uni
+	    multi_file_list: ['velocity' 'density' 'velocity' 'density' 'velocity' 'density']
+	    multi_file_idxOff: [0. 0. 1. 1. 2. 2.]
+	    multi_file_list_y: ['velocity' 'velocity' 'velocity']
+	    multi_file_idxOff_y: [0. 1. 2.]
+	    '''
+	    print('done loading data')
+    if useDataAugmentation:
+	    tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
+    inputx, y, xFilenames  = floader.get()
+    if view_only:
+	    inputy = y.copy()
 # print('inputx shape: {}'.format(inputx.shape))
 # print('y shape: {}'.format(y.shape))
 # print('y[0] shape: {}'.format(y[0].shape))
@@ -1025,18 +1376,18 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 		grid = img
 	
 	if True:
-		tmp_grid = img.copy()
-		# ave: 0.7, 0.6, should be 0.6, 0.3
-		# 0.7 = 1 - 0.3
-		# 0.6 = 0.6
+		# tmp_grid = img.copy()
+		# # ave: 0.7, 0.6, should be 0.6, 0.3
+		# # 0.7 = 1 - 0.3
+		# # 0.6 = 0.6
 		grid_shape = grid.shape
-		for i in range(grid_shape[0]):
-			for j in range(grid_shape[1]):
-				grid_vel = grid[i][j]
-				real_i = j
-				real_j = grid_shape[0] - i - 1
-				tmp_grid[real_i][real_j] = grid_vel
-		grid = tmp_grid
+		# for i in range(grid_shape[0]):
+		# 	for j in range(grid_shape[1]):
+		# 		grid_vel = grid[i][j]
+		# 		real_i = j
+		# 		real_j = grid_shape[0] - i - 1
+		# 		tmp_grid[real_i][real_j] = grid_vel
+		# grid = tmp_grid
 		vel_threshold = 2
 		ave_i = 0
 		ave_j = 0
@@ -1179,9 +1530,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
 				# input('')
 		# print('{}: pic_vel: {}, flip_vel: {}'.format(closest_cell/grid_shape[0], pic_vel, flip_vel))
 		particle_vel[idx] = flip * flip_vel + (1. - flip) * pic_vel
-		# print('{} = {} * {} + {} * {}'.format(particle_vel[idx], flip, flip_vel, (1.-flip), pic_vel))
-		# particle_vel[idx] = np.array([vel[0], vel[1]])
-	# input('')
+	return grid
 #										1st step: frame 1
 # evaluate the generator (sampler) on the first step of the first simulation and output result
 def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, imageindex = 0):
@@ -1314,6 +1663,44 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
 			buildVelField(batch_xs, outPath)
 			moveParticles(frame_no=frame_no)
 			drawParticles(str(frame_no + 1))
+# evaluate the generator (sampler) on the first step of the first simulation and output result
+
+def mlmpm_generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0, simulator=None):
+    batch_xs = simulator.low_res
+    resultTiles = []
+    # if True:
+        # grid_shape = batch_xs.shape
+        # vel_threshold = 2
+        # ave_i = 0
+        # ave_j = 0
+        # ave_cnt = 0
+        # for i in range(grid_shape[1]):
+        #     for j in range(grid_shape[2]):
+        #         grid_vel = batch_xs[0][i][j]
+        #         if abs(grid_vel[0]) > vel_threshold or abs(grid_vel[1]) > vel_threshold :
+        #             ave_i += i + 1
+        #             ave_j += j + 1
+        #             ave_cnt += 1
+        # print('ave: {},{}'.format(ave_i/ave_cnt, ave_j/ave_cnt))
+
+    for tileno in range(1):
+        batch_xs_in = np.reshape(batch_xs, [-1, n_input])
+        results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+        resultTiles.extend(results)
+    resultTiles = np.array(resultTiles)
+    if dataDimension == 2: # resultTiles may have a different size
+        imgSz = int((resultTiles.shape[1]/n_outputChannels)**(1.0/2) + 0.5)
+        resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,n_outputChannels])
+    else:
+        imgSz = int(resultTiles.shape[1]**(1.0/3) + 0.5)
+        resultTiles = np.reshape(resultTiles,[resultTiles.shape[0],imgSz,imgSz,imgSz])
+    tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
+    tc.saveVecField(resultTiles, './output_0064/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+    simulator.high_res = buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image)
+    simulator.move_in_high()
+    # simulator.save(is_high=True)
+
+
 def generate3DUni(sim_no = fromSim, frame_no = 1, outPath = test_path,imageindex = 0):
 	if dataDimension == 2:
 		print("ERROR: only for 3D Uni files output!")	
@@ -1881,7 +2268,7 @@ if not outputOnly and trainGAN:
 
 ### OUTPUT MODE ###
 
-elif outputOnly: 
+elif outputOnly and (not mlmpm): 
 	print('*****OUTPUT ONLY*****')
 	for layerno in range(0,frameMax-frameMin):
 		print('Generating %d' % (layerno))
@@ -1899,3 +2286,9 @@ elif outputOnly:
 
 	print('Test finished, %d outputs written to %s.' % (frameMax-frameMin, test_path) )
 
+elif outputOnly and mlmpm: 
+    print('*****MLMPM*****')
+    simulator = Simulator()
+    for frameno in range(0, simulator.n_steps):
+        simulator.advance_step()
+        mlmpm_generateValiVel(fromSim, frameno, outPath=test_path, imageindex=frameno, simulator=simulator)        
