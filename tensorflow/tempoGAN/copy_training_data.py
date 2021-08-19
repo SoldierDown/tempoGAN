@@ -1,21 +1,25 @@
 import os
 
 res = 256
-start_sim_no = 2000
-start_dest_folder = 1000
+start_sim_no = 7000
+start_dest_folder = 7000
 n_sims = 30
-last_frame = 120
+last_frame = 100
 
 
-use_wa = True
+use_wa = False
+with_extra = True
 
 folder = ''
 if use_wa:
-    folder = 'training_data_downsampled_wa'
+    folder = 'training_data_downsampled/wa/'
 else:
-    folder = 'training_data_downsampled_p2g'
-    start_dest_folder += 1000
+    folder = 'training_data_downsampled/p2g/'
 
+if with_extra:
+    folder += 'with_extra'
+else:
+    folder += 'no_extra'
 # start_sim_no = 2000
 # n_sims = 30
 # folder = 'training_data_downsampled_wa_no_extra'

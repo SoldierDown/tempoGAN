@@ -143,6 +143,9 @@ draw_particles		= int(ph.getParam( "drawParticles",   	  	True ))>0
 move_particles_only	= int(ph.getParam( "moveOnly",   	  		True ))>0 		
 view_only			= int(ph.getParam( "viewOnly",   	  		True ))>0 		
 
+
+mlmpm				= int(ph.getParam( "mlmpm",   	  			True ))>0 		
+
 if move_particles_only:
 	useDensity = False
 
@@ -169,6 +172,9 @@ upRes	  		= 4 # fixed for now...
 simSizeHigh 	= simSizeLow * upRes
 tileSizeHigh	= tileSizeLow  * upRes
 
+def step():
+	pass
+
 if not (dataDimension == 2 or dataDimension == 3):
 	print('Unsupported data dimension {}. Only 2 and 3 are supported'.format(dataDimension))
 	exit(1)
@@ -183,10 +189,10 @@ lowfilename = "velocity_low_%04d.uni"
 highfilename = "velocity_high_%04d.uni"
 mfl = ["velocity"]
 mfh = ["velocity"]
-# if outputOnly: 
-# 	if not view_only:
-# 		highfilename = None
-# 		mfh = None
+if outputOnly: 
+	if not view_only:
+		highfilename = None
+		mfh = None
 if useDensity:
 	channelLayout_low += ',d'
 	mfl= np.append(mfl, "density")
@@ -243,7 +249,8 @@ else:
 if useDataAugmentation:
 	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames  = floader.get()
-inputy = y.copy()
+if view_only:
+	inputy = y.copy()
 # print('inputx shape: {}'.format(inputx.shape))
 # print('y shape: {}'.format(y.shape))
 # print('y[0] shape: {}'.format(y[0].shape))
@@ -354,7 +361,7 @@ def drawParticles(name):
 
 # read particle positions
 if outputOnly:
-	with open('/nfs/hsu/repo/MPM/mpm/saved/particle_positions.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/particle_positions.txt') as f:
 		ave_pos = np.zeros(2)
 		cnt = 0
 		lines = [line.rstrip() for line in f]
@@ -371,14 +378,14 @@ if outputOnly:
 			ave_pos += np.array(cur_pos)
 			cnt += 1
 			particle_pos.append(cur_pos)
-			particle_vel.append(np.array([3.17415e-08, -2.66179]))
+			particle_vel.append(np.array([-1.76606, 5.83115]))
 	print('ave_pos: {}'.format(ave_pos/cnt))
 	# input('')
 	if draw_particles:
 		drawParticles('0')
 	cnt = 0
 	# read dt
-	with open('/nfs/hsu/repo/MPM/mpm/output-2d-1109-256x256/timestep.txt') as f:
+	with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/timestep.txt') as f:
 		lines = [line.rstrip() for line in f]
 		for line in lines:
 			# print(pos)
@@ -420,12 +427,6 @@ keep_prob = tf.placeholder(tf.float32)
 
 print("x: {}".format(x.get_shape()))
 # --- main graph setup ---
-# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8,  reuse, use_batch_norm,5)
-# ru2 = resBlock(gan, ru1, 128, 128,  reuse, use_batch_norm,5)
-# inRu3 = ru2
-# ru3 = resBlock(gan, inRu3, 32, 8,  reuse, use_batch_norm,5)
-# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-
 rbId = 0
 def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=False):
 	global rbId
@@ -438,11 +439,21 @@ def resBlock(gan, inp, s1, s2, reuse, use_batch_norm, filter_size=3, use_linear=
 		filter = [filter_size,filter_size,filter_size]
 		filter1 = [1,1,1]
 
-	gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
+	# print('layer 1')
+	# Generator info
+	# inChannels: 	2
+	# outChannels:	4
+	gc1, _	= gan.convolutional_layer(  s1, filter, tf.nn.relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
 	# gc1,_ = gan.convolutional_layer(  s1, filter, tf.nn.leaky_relu, stride=[1], name="g_cA%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
-	gc2,_ = gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
+	# print('layer 2')
+	# inChannels: 	4
+	# outChannels: 	16
+	gc2, _ 	= gan.convolutional_layer(  s2, filter, None      , stride=[1], name="g_cB%d"%rbId,               reuse=reuse, batch_norm=use_batch_norm, train=train) #->8,128
 
 	# shortcut connection
+	# inChannels:	2
+	# outChannels: 	16
+	# print('shortcut')
 	gs1,_ = gan.convolutional_layer(s2, filter1 , None       , stride=[1], name="g_s%d"%rbId, in_layer=inp, reuse=reuse, batch_norm=use_batch_norm, train=train) #->16,64
 	
 	# resUnit1 = tf.nn.relu( tf.add( gc2, gs1 )  )
@@ -480,13 +491,21 @@ def gen_resnet(_in, reuse=False, use_batch_norm=False, train=None):
 		filter_size = 5
 		gan.max_depool()
 		inp = gan.max_depool()
-		ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, filter_size=filter_size)
-		ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, filter_size=filter_size)
+		
+		# copy
+		# ru1 = resBlock(gan, inp, n_inputChannels*2, n_inputChannels*8, reuse, use_batch_norm, filter_size=filter_size)
+		# ru2 = resBlock(gan, ru1, 128, 128, reuse, use_batch_norm, filter_size=filter_size)
+		# inRu3 = ru2
+		# ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, filter_size=filter_size)
+		# # ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
+		# ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
+
+
+		ru1 = resBlock(gan, inp, n_inputChannels*2, 	n_inputChannels*8, 	reuse, use_batch_norm, filter_size=filter_size)
+		ru2 = resBlock(gan, ru1, n_inputChannels*16, 	n_inputChannels*64, reuse, use_batch_norm, filter_size=filter_size)
 		inRu3 = ru2
-		ru3 = resBlock(gan, inRu3, 32, 8, reuse, use_batch_norm, filter_size=filter_size)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5, use_linear = True)
-		# ru4 = resBlock(gan, ru3, 2, 1,  reuse, False, 5)
-		ru4 = resBlock(gan, ru3, 4, n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
+		ru3 = resBlock(gan, inRu3, 	n_inputChannels*16,	n_inputChannels*4, 	reuse, use_batch_norm, filter_size=filter_size)
+		ru4 = resBlock(gan, ru3,  	n_inputChannels*2, 	n_outputChannels, reuse, False, filter_size=filter_size, use_linear = True)
 		resF = tf.reshape( ru4, shape=[-1, n_output] )
 		print("\tDOFs: %d , %f m " % ( gan.getDOFs() , gan.getDOFs()/1000000.) ) 
 		return resF
@@ -502,8 +521,7 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 	with tf.variable_scope("discriminator", reuse=reuse):
 		if dataDimension == 2:
 			shape = tf.shape(in_low)					# 16, 16x16x4
-			# print('in_low: {}'.format(in_low.shape)) 	# (?, 512); 512 = 16 x 16 x 2
-			# input('')
+			print('in_low: {}'.format(in_low.shape)) 	# (?, 512); 512 = 16 x 16 x 2
 			# slice: [beginning indices] [output size]
 			# in_low = tf.slice(in_low,[0,0],[shape[0],int(n_input/n_inputChannels)])
 			in_low = tf.slice(in_low,[0,0],[shape[0],int(n_outputChannels*n_input/n_inputChannels)])
@@ -523,8 +541,6 @@ def disc_binclass(in_low, in_high, reuse=False, use_batch_norm=False, train=None
 			stride2 = [2]
 
 		# merge in_low and in_high to [-1, tileSizeHigh, tileSizeHigh, 2]
-		print('in_low: {}'.format(in_low.shape))
-		print('in_high: {}'.format(in_high.shape))
 		gan = GAN(tf.concat([in_low, in_high], axis=-1), bn_decay=bn_decay) # 64
 		d1,_ = gan.convolutional_layer(32, filter, stride=stride2, name="d_c1", reuse=reuse) # 32
 		d2,_ = gan.convolutional_layer(64, filter, stride=stride2, name="d_c2", reuse=reuse, batch_norm=use_batch_norm, train=train) # 64
@@ -732,6 +748,7 @@ if not outputOnly:
 	gen_l1_loss = tf.reduce_mean(tf.abs(y - gen_part)) # use mean to normalize w.r.t. output dims. tf.reduce_sum(tf.abs(y - gen_part))
 
 	# uses sigmoid cross entropy and l1 - see cGAN paper
+	# add a term for optimal transport
 	gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
 	print(gen_loss)
 	print(disc_loss_layer)
@@ -1177,7 +1194,8 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 			batch_xs, batch_ys = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
 		else:
 			batch_xs = inputx[frame_no]
-			batch_ys = inputy[frame_no]
+			if view_only:
+				batch_ys = inputy[frame_no]
 			# batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
 			# batch_ys = y[frame_no]
 		# print('frame_no: {}'.format(frame_no))
@@ -1208,7 +1226,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
 		# os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
 		# os.system('mkdir ' + test_path + 'generated_vel_field/')
 		# os.system('mkdir ' + test_path + 'particles/')
-		if outputOnly:
+		if view_only:
 			original_batch_ys = np.reshape(batch_ys, [1, imgSz, imgSz, 2])
 			print('original HIGH vel field: ')
 			tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_')

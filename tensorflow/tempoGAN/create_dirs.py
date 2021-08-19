@@ -1,9 +1,7 @@
 import os
 
-axis = 1
-start_dest_folder = 1000 + axis * 1000
+start_dest_folder = 7000
 n_sims = 30
-start_dest_folder = 4000
 command_pre = "mkdir ../2ddata_sim/sim_"
 command_post = '/*'
 for sim in range(n_sims):
