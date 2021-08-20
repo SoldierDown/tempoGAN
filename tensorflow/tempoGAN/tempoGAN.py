@@ -15,6 +15,14 @@ import random
 from PIL import Image, ImageDraw
 import os
 
+class Grid:
+    def __init__(self, res, dim):
+        self.vals = np.zeros(res**2 * dim).reshape(res, res, dim)
+    def get_val(self, i, j):
+        return self.vals[i][j]
+    def set_val(self, i, j, val):
+        self.vals[i][j] = val
+
 class Particle:
     def __init__(self, pos=np.array([0., 0.]), vel=np.array([0., 0.])):
         self.eos = True
@@ -487,14 +495,9 @@ draw_particles		= int(ph.getParam( "drawParticles",   	  	True ))>0
 move_particles_only	= int(ph.getParam( "moveOnly",   	  		True ))>0 		
 view_only			= int(ph.getParam( "viewOnly",   	  		True ))>0 		
 
-
-
-
 mlmpm				= int(ph.getParam( "mlmpm",   	  			True ))>0 		
 
-
-
-mlmpm = True
+mlmpm = False
 
 if move_particles_only:
 	useDensity = False
@@ -521,9 +524,6 @@ use_spatialdisc = True
 upRes	  		= 4 # fixed for now...
 simSizeHigh 	= simSizeLow * upRes
 tileSizeHigh	= tileSizeLow  * upRes
-
-def step():
-	pass
 
 if not (dataDimension == 2 or dataDimension == 3):
 	print('Unsupported data dimension {}. Only 2 and 3 are supported'.format(dataDimension))
