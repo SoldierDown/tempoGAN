@@ -81,6 +81,7 @@ class TileCreator(object):
 			loadPath: packed simulations are stored here
 		'''
 		
+		self.ppos = None
 		# DATA DIMENSION
 		self.dim_t = dim_t # same for hi_res or low_res
 		if dim!=2 and dim!=3:
@@ -294,10 +295,15 @@ class TileCreator(object):
 		print(msg)
 		self.interpolation_order = 1
 		self.fill_mode = 'constant'
-		# input('')	
+		if True:
+			self.do_rotation = False
+			self.do_scaling = False
+			self.do_rot90 = False
+			self.do_flip = False
+
+
 	
-	
-	def addData(self, low, high):
+	def addData(self, low, high, ppos):
 		'''
 			add data, tiles if premadeTiles, frames otherwise.
 			low, high: list of or single 3D data np arrays
@@ -305,7 +311,8 @@ class TileCreator(object):
 		# check data shape
 		low = np.asarray(low)
 		high = np.asarray(high)
-		
+		ppos = np.asarray(ppos)
+		self.ppos = ppos
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
 			if len(low.shape)!=len(high.shape): #high-low mismatch
 				self.TCError('Data shape mismatch. Dimensions: {} low vs {} high. Dimensions must match or use highIsLabel.'.format(len(low.shape),len(high.shape)) )
@@ -438,7 +445,7 @@ class TileCreator(object):
 # batch creation
 #####################################################################################
 	
-	
+	# Note: now can only be used for selectionSize == 1
 	def selectRandomTiles(self, selectionSize, isTraining=True, augment=False, tile_t = 1):
 		'''
 			main method to create batches
@@ -457,18 +464,19 @@ class TileCreator(object):
 			self.TCError('not enough coherent frames. Requested {}, available {}'.format(tile_t, self.dim_t))
 		batch_low = []
 		batch_high = []
+		ppos = None
 		for i in range(selectionSize):
 			if augment and self.useDataAug: #data augmentation
 				# this way
-				low, high = self.generateTile(isTraining, tile_t)
+				ppos, low, high = self.generateTile(isTraining, tile_t)
 			else: #cut random tile without augmentation
-				low, high = self.getRandomDatum(isTraining, tile_t)
+				ppos, low, high = self.getRandomDatum(isTraining, tile_t)
 				if not self.premadeTiles:
 					low, high = self.getRandomTile(low, high)
 			batch_low.append(low)
 			batch_high.append(high)
 			
-		return np.asarray(batch_low), np.asarray(batch_high)
+		return ppos, np.asarray(batch_low), np.asarray(batch_high)
 ###################################################################################################################
 	def generateTile(self, isTraining=True, tile_t = 1):
 		'''
@@ -477,7 +485,7 @@ class TileCreator(object):
 		# get a frame, is a copy to avoid transormations affecting the raw dataset
 		data = {}
 		# DATA_KEY_LOW: 0, DATA_KEY_HIGH: 1
-		data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomDatum(isTraining, tile_t)
+		ppos, data[DATA_KEY_LOW], data[DATA_KEY_HIGH] = self.getRandomDatum(isTraining, tile_t)
 
 		if not self.premadeTiles:
 			# cut a tile for faster transformation
@@ -486,7 +494,6 @@ class TileCreator(object):
 				if self.do_rotation: # or self.do_scaling:
 					factor*=1.5 # scaling: to avoid size errors caused by rounding
 				if self.do_scaling:
-					# print('should not show up')
 					scaleFactor = np.random.uniform(self.scaleFactor[0], self.scaleFactor[1])
 					factor/= scaleFactor 
 					# print('scaleFactor: {}, factor: {}'.format(scaleFactor, factor))
@@ -507,6 +514,10 @@ class TileCreator(object):
 			#rotate
 			if self.do_rotation:
 				bounds = np.array(data[DATA_KEY_LOW].shape)*0.16 #bounds applied on all sides, 1.5*(1-2*0.16)~1
+				print('bounds: {}'.format(bounds))
+				# print('data low: {}, data high: {}'.format(data[DATA_KEY_LOW].shape, data[DATA_KEY_HIGH].shape))
+				# low: 1x24x24x2, high: 1x96x96x2
+				# input('')
 				data = self.rotate(data)
 		
 			#get a tile
@@ -541,7 +552,7 @@ class TileCreator(object):
 		if not np.array_equal(data[DATA_KEY_LOW].shape,target_shape_low) or (not np.array_equal(data[DATA_KEY_HIGH].shape,target_shape_high) and not self.data_flags[DATA_KEY_HIGH]['isLabel']):
 			self.TCError('Wrong tile shape after data augmentation. is: {},{}. goal: {},{}.'.format(data[DATA_KEY_LOW].shape, data[DATA_KEY_HIGH].shape, target_shape_low, target_shape_high))
 		
-		return data[DATA_KEY_LOW], data[DATA_KEY_HIGH]
+		return ppos, data[DATA_KEY_LOW], data[DATA_KEY_HIGH]
 ###################################################################################################################
 	
 	def getRandomDatum(self, isTraining=True, tile_t = 1):
@@ -555,8 +566,8 @@ class TileCreator(object):
 			randFrame = randrange(0, self.dim_t - tile_t)
 		else:
 			tile_t = self.dim_t
-
-		return self.getDatum(randNo*self.dim_t+randFrame, tile_t)
+		no = randNo * self.dim_t + randFrame
+		return  self.getDatum(no, tile_t)
 
 	def getDatum(self, index, tile_t = 1):
 		'''returns a copy of the indicated frame or tile'''
@@ -570,9 +581,9 @@ class TileCreator(object):
 		end_c_h_y = begin_ch_y + tile_t * self.tile_shape_high[-1]
 		
 		if not self.data_flags[DATA_KEY_HIGH]['isLabel']:
-			return np.copy(self.data[DATA_KEY_LOW][index//self.dim_t][:,:,:,begin_ch:end_ch]), np.copy(self.data[DATA_KEY_HIGH][index//self.dim_t][:,:,:,begin_ch_y:end_c_h_y])
+			return self.ppos[index], np.copy(self.data[DATA_KEY_LOW][index//self.dim_t][:,:,:,begin_ch:end_ch]), np.copy(self.data[DATA_KEY_HIGH][index//self.dim_t][:,:,:,begin_ch_y:end_c_h_y])
 		else:
-			return np.copy(self.data[DATA_KEY_LOW][index//self.dim_t][:,:,:,begin_ch:end_ch]), np.copy(self.data[DATA_KEY_HIGH][index//self.dim_t])
+			return self.ppos[index], np.copy(self.data[DATA_KEY_LOW][index//self.dim_t][:,:,:,begin_ch:end_ch]), np.copy(self.data[DATA_KEY_HIGH][index//self.dim_t])
 
 
 	def getRandomTile(self, low, high, tileShapeLow=None, bounds=[0,0,0,0]): #bounds to avoid mirrored parts
@@ -670,6 +681,8 @@ class TileCreator(object):
 		
 		#2D:
 		if self.dim==2:
+			# print('2d')
+			# this way
 			theta = np.pi * np.random.uniform(0, 2)
 			rotation_matrix = np.array([[1, 0, 0, 0 ],
 										[0, np.cos(theta), -np.sin(theta), 0], 
@@ -687,14 +700,12 @@ class TileCreator(object):
 										[  q[1, 2]+q[3, 0], 1-q[1, 1]-q[3, 3],   q[2, 3]-q[1, 0], 0],
 										[  q[1, 3]-q[2, 0],   q[2, 3]+q[1, 0], 1-q[1, 1]-q[2, 2], 0],
 										[                0,                 0,                 0, 1]])
-		
 		data = self.special_aug(data, AOPS_KEY_ROTATE, rotation_matrix)
 		
 		for data_key in data:
 			if not self.data_flags[data_key]['isLabel']:
+				# this way
 				data[data_key] = self.applyTransform(data[data_key], rotation_matrix.T)
-			
-			
 		return data
 		
 	def rotate_simple(self, low, high, angle):
@@ -712,10 +723,11 @@ class TileCreator(object):
 		'''
 			rotate vel vectors (channel 1-3)
 		'''
-		
+		# print('datum: {}'.format(datum.shape)) 						# 1x24x24x2
 		rotation3 = rotationMatrix[:3, :3]
 		rotation2 = rotationMatrix[1:3, 1:3]
 		channels = np.split(datum, datum.shape[-1], -1)
+		# print('channels: {}'.format(np.array(channels).shape))			# 2x1x24x24x1
 		for v in c_list:
 			if len(v) == 3: # currently always ends here!! even for 2D, #z,y,x to match rotation matrix
 				vel = np.stack([channels[v[2]].flatten(),channels[v[1]].flatten(),channels[v[0]].flatten()]) 
@@ -724,6 +736,7 @@ class TileCreator(object):
 				channels[v[1]] = np.reshape(vel[1], channels[v[1]].shape)
 				channels[v[0]] = np.reshape(vel[2], channels[v[0]].shape)
 			if len(v) == 2:
+				# this way: v: [0, 1]
 				vel = np.concatenate([channels[v[1]],channels[v[0]]], -1) #y,x to match rotation matrix
 				shape = vel.shape
 				vel = np.reshape(vel, (-1, 2))
@@ -858,7 +871,7 @@ class TileCreator(object):
 		if len(data.shape)!=4:
 			self.TCError('Data shape mismatch.')
 			
-		#set transform to center; from fluiddatagenerator.py
+		# set transform to center; from fluiddatagenerator.py
 		offset = np.array(data.shape) / 2 - np.array([0.5, 0.5, 0.5, 0])
 		offset_matrix = np.array([[1, 0, 0, offset[0]], [0, 1, 0, offset[1]], [0, 0, 1, offset[2]], [0, 0, 0, 1]])
 		reset_matrix  = np.array([[1, 0, 0,-offset[0]], [0, 1, 0,-offset[1]], [0, 0, 1,-offset[2]], [0, 0, 0, 1]])
@@ -923,8 +936,8 @@ class TileCreator(object):
 	
 	def getFrameTiles(self, index):
 		''' returns the frame as tiles'''
-		low, high = self.getDatum(index)
-		return self.createTiles(low, self.tile_shape_low), self.createTiles(high, self.tile_shape_high)
+		cur_ppos, low, high = self.getDatum(index)
+		return cur_ppos, self.createTiles(low, self.tile_shape_low), self.createTiles(high, self.tile_shape_high)
 
 #####################################################################################
 # CHANNEL PARSING
@@ -1494,7 +1507,7 @@ def selectRandomTempoTiles(self, selectionSize, isTraining=True, augment=False, 
 			channels: density, [vel x, vel y, vel z], [pos x, pox y, pos z]
 	'''
 	batch_sz = int( max( 1, selectionSize // n_t) )
-	batch_low, batch_high = self.selectRandomTiles(batch_sz, isTraining, augment, tile_t = n_t)
+	_, batch_low, batch_high = self.selectRandomTiles(batch_sz, isTraining, augment, tile_t = n_t)
 	real_batch_sz = batch_sz * n_t
 	ori_input_shape = batch_low.reshape((batch_sz, self.tileSizeLow[0], self.tileSizeLow[1], self.tileSizeLow[2], n_t, -1))
 	ori_input_shape = np.transpose(ori_input_shape, (0,4,1,2,3,5))

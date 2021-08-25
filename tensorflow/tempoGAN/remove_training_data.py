@@ -1,6 +1,6 @@
 import os
 
-start_dest_folder = 1000
+start_dest_folder = 9000
 n_sims = 30
 
 command_pre = 'rm ../2ddata_sim/sim_'

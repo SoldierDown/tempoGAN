@@ -74,7 +74,6 @@ class FluidDataLoader(object):
 			oldNamingScheme: revert to old scheme with double indices for dir & filename
 				by default the loader expects: data/sim_XXXX/density_low_YYYY.sth
 				the old naming scheme was: data/sim_XXXX/frame_YYYY/density_low_XXXX_YYYY.sth
-			
 		"""
 		# path basics
 		self.base_path = base_path
@@ -153,7 +152,9 @@ class FluidDataLoader(object):
 		# all initialized upon load:
 		self.x = None
 		self.y = None
+		self.ppos = None
 		self.xfn = None # input file names
+		self.ppos_fn = None # input particle pos
 		self.have_y_npz = False # does y contain numpy array data? 
 
 		self.loadDirs()
@@ -235,8 +236,13 @@ class FluidDataLoader(object):
 				filelist_index = int(self.filename_index_min + t*tf) # full range
 				# print('current low res file index: {}'.format(filelist_index))
 				fn = self.getFilename(sim_index, self.filename, filelist_index)
-				# print('current low res file: {}'.format(fn))
 				self.xfn.append(fn)
+				# print('current low res file: {}'.format(fn))
+				basename = fn
+				basename = basename.replace('velocity_low_', '')
+				basename = basename.replace('uni', 'txt')
+				self.ppos_fn.append(basename)
+				
 				foundCnt += 1
 
 				if self.filename_y is not None:
@@ -339,6 +345,25 @@ class FluidDataLoader(object):
 
 		return ar
 
+	def loadSinglePPosDatum(self, fn):
+		""" 
+			Determine file type and load
+		"""
+		ppos = []
+		# with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/particle_positions.txt') as f:
+		with open(fn) as f:
+			ave_pos = np.zeros(2)
+			cnt = 0
+			lines = [line.rstrip() for line in f]
+			for line in lines:
+				pos = line.split(' ')
+				# print(pos)
+				cur_pos = np.array(np.float32([pos[0], pos[1]]))
+				ave_pos += np.array(cur_pos)
+				cnt += 1
+				ppos.append(cur_pos)
+		return ppos
+
 	def loadFiles(self):
 		# print('loading files')
 		""" Load all NPZs from list.
@@ -429,6 +454,7 @@ class FluidDataLoader(object):
 				if self.print_info: 
 					print("Allocating x data for "+format(n)+" entries of size "+format(self.shape) )
 				self.x = np.zeros( tuple([n]+list(self.shape)) , dtype=FDG_DTYPE )
+				self.ppos = []
 			# optional zoom, is initialized with original array
 			if self.do_zoom:
 				# not this way
@@ -436,6 +462,9 @@ class FluidDataLoader(object):
 
 			# finally store t-th data sample
 			self.x[t,:]  = fx
+			
+			cur_ppos = self.loadSinglePPosDatum(self.ppos_fn[t])
+			self.ppos.append(cur_ppos)
 			# and again for y ...
 			if self.have_y_npz:
 				# fy = self.removeZComponent(fy)
@@ -478,6 +507,7 @@ class FluidDataLoader(object):
 		"""
 		self.xfn = []
 		self.yfn = []
+		self.ppos_fn = []
 		currDir = os.getcwd()
 
 		# print('indices: {}'.format(self.indices))
@@ -546,6 +576,10 @@ class FluidDataLoader(object):
 			print("\tx mean & var: " + format([m,s]))
 			# if m<1e-10 and s<1e-10: # sanity check, any non-zero values?
 			# 	raise FluidDataLoaderError("FluidDataLoader error: aborting, input data x is all zero")
+
+			print('# ppos files: {}, # ppos fn: {}'.format(np.array(self.ppos).shape, np.array(self.ppos_fn).shape))
+			# print(self.ppos[0])
+			# input('')
 			self.perChannelStats(self.x, "\tPer channel mean & var for x: ")
 			if self.have_y_npz: 
 				print("\tData shape y " + format(self.y.shape))
@@ -557,7 +591,7 @@ class FluidDataLoader(object):
 	def get(self):
 		""" After loading, return arrays 
 		"""
-		return self.x , self.y , self.xfn
+		return self.x , self.y , self.xfn, self.ppos
 
 	def getFullInfo(self):
 		""" Summarize full data set as string
