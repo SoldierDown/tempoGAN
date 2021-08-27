@@ -3,7 +3,7 @@ import os
 from numpy.core.numeric import full
 
 res = 64
-start_sim_no = 9002
+start_sim_no = 9000
 start_dest_folder = 9999
 n_sims = 1
 last_frame = 2

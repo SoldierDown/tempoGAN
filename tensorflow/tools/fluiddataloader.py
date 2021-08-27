@@ -94,8 +94,8 @@ class FluidDataLoader(object):
 		self.multi_file_idxOff   = multi_file_idxOff  
 		# print('low multi file idxOff: {}'.format(self.multi_file_idxOff))
 		self.multi_file_idxOff_y = multi_file_idxOff_y
-		self.postproc_func   = postproc_func  
-		self.postproc_func_y = postproc_func_y
+		self.ave_x = []
+		self.ave_y = []
 		# input('')
 
 		# y data for labeling x
@@ -364,6 +364,51 @@ class FluidDataLoader(object):
 				ppos.append(cur_pos)
 		return ppos
 
+	def postproc_func(self, data):
+		shape = data.shape
+		ave_vel = np.zeros(2)
+		cnt = 0
+		for batchid in range(shape[0]):
+			for i in range(shape[1]):
+				for j in range(shape[2]):
+					cur_vel = data[batchid][i][j]
+					if cur_vel[0] != 0. or cur_vel[1] != 0.:
+						ave_vel += cur_vel
+						cnt += 1
+		ave_vel /= cnt
+		print('low  res velocity: {}'.format(ave_vel))
+		self.ave_x.append(ave_vel)
+		for batchid in range(shape[0]):
+			for i in range(shape[1]):
+				for j in range(shape[2]):
+					cur_vel = data[batchid][i][j]
+					if cur_vel[0] != 0. or cur_vel[1] != 0.:
+						data[batchid][i][j] -= ave_vel
+		return data
+
+	def postproc_func_y(self, data):
+		shape = data.shape
+		ave_vel = np.zeros(2)
+		cnt = 0
+		for batchid in range(shape[0]):
+			for i in range(shape[1]):
+				for j in range(shape[2]):
+					cur_vel = data[batchid][i][j]
+					if cur_vel[0] != 0. or cur_vel[1] != 0.:
+						ave_vel += cur_vel
+						cnt += 1
+		ave_vel /= cnt
+		print('high res velocity: {}'.format(ave_vel))
+		self.ave_y.append(ave_vel)
+		for batchid in range(shape[0]):
+			for i in range(shape[1]):
+				for j in range(shape[2]):
+					cur_vel = data[batchid][i][j]
+					if cur_vel[0] != 0. or cur_vel[1] != 0.:
+						data[batchid][i][j] -= ave_vel
+		return data
+		return data
+
 	def loadFiles(self):
 		# print('loading files')
 		""" Load all NPZs from list.
@@ -400,9 +445,7 @@ class FluidDataLoader(object):
 					# print('current low res total loaded data shape: {}'.format(fx.shape))
 			# input('')
 			# apply post-processing function (if given)
-			if self.postproc_func is not None:
-				# not this way
-				fx = self.postproc_func(fx, self)
+			fx = self.postproc_func(fx)
 
 			# ... and the same again for y
 			if self.have_y_npz:
@@ -428,8 +471,7 @@ class FluidDataLoader(object):
 						fy = np.append( fy, _fy , axis=len(fy.shape)-1 )
 						# print('current high res total loaded data shape: {}'.format(fy.shape))
 				# input('')
-				if self.postproc_func_y is not None:
-					fy = self.postproc_func_y(fy, self)
+				fy = self.postproc_func_y(fy)
 			# fx = self.removeZComponent(fx) # optional!
 
 			# intialize x/y arrays upon first use
@@ -578,6 +620,8 @@ class FluidDataLoader(object):
 			# 	raise FluidDataLoaderError("FluidDataLoader error: aborting, input data x is all zero")
 
 			print('# ppos files: {}, # ppos fn: {}'.format(np.array(self.ppos).shape, np.array(self.ppos_fn).shape))
+			print('ave low  res vel: {}'.format(self.ave_x))
+			print('ave high res vel: {}'.format(self.ave_y))
 			# print(self.ppos[0])
 			# input('')
 			self.perChannelStats(self.x, "\tPer channel mean & var for x: ")
@@ -591,7 +635,7 @@ class FluidDataLoader(object):
 	def get(self):
 		""" After loading, return arrays 
 		"""
-		return self.x , self.y , self.xfn, self.ppos
+		return self.x , self.y , self.xfn, self.ppos, self.ave_x
 
 	def getFullInfo(self):
 		""" Summarize full data set as string

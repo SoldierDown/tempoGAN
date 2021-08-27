@@ -252,7 +252,7 @@ else:
     print('done loading data')
 if useDataAugmentation:
     tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
-inputx, y, xFilenames, all_ppos  = floader.get()
+inputx, y, xFilenames, all_ppos, ave_vel = floader.get()
 if view_only:
     inputy = y.copy()
 # print('inputx shape: {}'.format(inputx.shape))
@@ -360,12 +360,19 @@ def drawParticles(name):
         # draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
         draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
         # draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-    im.save(test_path + '/particles/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+    im.save(test_path + 'particles/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
+
+    if not os.path.exists(test_path + 'particle_positions/'):
+            os.system('mkdir ' + test_path + 'particle_positions/')
+    with open(test_path + 'particle_positions/p%04d.txt' % int(name), 'w') as file:
+        for pos in particle_pos:
+            file.write('{} {} 1.\n'.format(pos[0], pos[1]))
+
 
 
 # read particle positions
 if outputOnly:
-    with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/particle_positions.txt') as f:
+    with open('../2ddata_sim/sim_%04d/0000.txt' % fromSim) as f:
         ave_pos = np.zeros(2)
         cnt = 0
         lines = [line.rstrip() for line in f]
@@ -382,14 +389,13 @@ if outputOnly:
             ave_pos += np.array(cur_pos)
             cnt += 1
             particle_pos.append(cur_pos)
-            particle_vel.append(np.array([-1.76606, 5.83115]))
+            particle_vel.append(np.array([0., -5.]))
     print('ave_pos: {}'.format(ave_pos/cnt))
-    # input('')
     if draw_particles:
         drawParticles('0')
     cnt = 0
     # read dt
-    with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/timestep.txt') as f:
+    with open('../2ddata_sim/sim_%04d/timestep.txt' % fromSim) as f:
         lines = [line.rstrip() for line in f]
         for line in lines:
             # print(pos)
@@ -910,7 +916,8 @@ if not outputOnly:
 
     # uses sigmoid cross entropy and l1 - see cGAN paper
     # add a term for optimal transport
-    gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2 + gen_ot_loss
+    # gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2 + gen_ot_loss
+    gen_loss_complete = gen_loss + gen_l1_loss*kk + disc_loss_layer*kk2
     # gen_loss_complete = gen_ot_loss
     print(gen_loss)
     print(disc_loss_layer)
@@ -1145,13 +1152,16 @@ def getTempoinput(batch_size = 1, isTraining = True, useDataAugmentation = False
 
 def moveParticles(frame_no):
     dt = timesteps[frame_no]
-    # dt = 3.9e-5*8.
     min_pv = 1e5
     max_pv = -1e5
+    cnt = 0
+    ave_pos = np.zeros(2)
     for idx, pos in enumerate(particle_pos):
         vel = particle_vel[idx]
         # print('cur_vel: {}'.format(vel))
         pos += vel * dt
+        ave_pos += pos
+        cnt += 1
         particle_pos[idx] = pos
         vel_norm = np.sqrt(vel[0]**2+vel[1]**2)
         if vel_norm > max_pv:
@@ -1159,9 +1169,10 @@ def moveParticles(frame_no):
         if vel_norm < min_pv:
             min_pv = vel_norm
     print('min pv: {}, max pv: {}'.format(min_pv, max_pv))
+    print('ave particle pos {}'.format(ave_pos/cnt))
     # input('')
 
-def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]):
+def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], aveV=np.zeros(2), input_field=None, frame_no=0):
     '''
         tiles_in_image: (y,x)
         tiles: shape: (tile,y,x,c)
@@ -1198,6 +1209,11 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
                 real_i = j
                 real_j = grid_shape[0] - i - 1
                 tmp_grid[real_i][real_j] = grid_vel
+                low_i = i//4
+                low_j = j//4
+                input_val = input_field[low_i][low_j]
+                if input_val[0]!=0. or input_val[1]!=0.:
+                    tmp_grid[real_i][real_j] += aveV
         grid = tmp_grid
         vel_threshold = 2
         ave_i = 0
@@ -1215,29 +1231,8 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
         # input('')
         # print('shape img_c: {}, shape img: {}'.format(img_c.shape, img.shape)) #img_c: 2x256x256, img: 256x256x2
     # input('')
-    dx = 1./simSizeHigh
-    inv_dx = simSizeHigh
-    print('dx: {}, dx_inv: {}'.format(dx, inv_dx))
-
-    min_vx = 1e5 
-    max_vx = -1e5
-    min_vy = 1e5
-    max_vy = -1e5
-    for i in range(img.shape[0]):
-        for j in range(img.shape[1]):
-            vx = img[i][j][0]
-            vy = img[i][j][1]
-            if vx > max_vx:
-                max_vx = vx
-            if vx < min_vx:
-                min_vx = vx
-            if vy > max_vy:
-                max_vy = vy
-            if vy < min_vy:
-                min_vy = vy
-    
-    print('vel range: {},{} and {},{}'.format(min_vx, min_vy, max_vx, max_vy))
-    # input('')
+    dx = 1./ np.float32(simSizeHigh)
+    inv_dx = np.float32(simSizeHigh)
 
     mass_grid = img.copy()
     flag_grid = img.copy()
@@ -1255,7 +1250,8 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
     # rasterize
     for idx, pos in enumerate(particle_pos):
         pos2d = np.array([pos[0], pos[1]])
-        closest_cell=np.int16(pos2d // dx)
+        closest_cell = (pos2d * inv_dx).astype(int)
+        # closest_cell[0], closest_cell[1] = int(math.floor(closest_cell[0])), int(math.floor(closest_cell[1]))
         closest_cell_position = (np.float32(closest_cell)) * dx + .5 * np.array([dx, dx])
         X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
         w = np.array([	[0., 0.],
@@ -1276,28 +1272,42 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
             for j in range(-1, 2):
                 weight = w[i+1][0] * w[j+1][1]
                 cur_cell = closest_cell + np.array([i, j])
+                # print(cur_cell)
                 ci, cj = cur_cell[0] , cur_cell[1]
                 mass_grid[ci][cj][0] += weight
                 prevel_grid[ci][cj][0] += weight * p_vel[0]
                 prevel_grid[ci][cj][1] += weight * p_vel[1]
+    
+
+    if not os.path.exists(test_path + 'grid_mass/'):
+            os.system('mkdir ' + test_path + 'grid_mass/')
+    with open(test_path + 'grid_mass/g%04d.txt' % int(frame_no), 'w') as file:
+        for i in range(grid_shape[0]):
+            for j in range(grid_shape[1]):
+                cur_mass = mass_grid[i][j][0]
+                cur_position = (np.float32(np.array([i, j]))) * dx + .5 * np.array([dx, dx])
+                if cur_mass > 0.:
+                    file.write('{} {} {}\n'.format(cur_pos[0], cur_pos[1], cur_mass))
+
+
     # normalization
     for i in range(grid_shape[0]):
         for j in range(grid_shape[1]):
             cur_mass = mass_grid[i][j][0]
+            cur_position = (np.float32(np.array([i, j]))) * dx + .5 * np.array([dx, dx])
             if cur_mass > 0.:
                 prevel_grid[i][j][0] /= cur_mass
                 prevel_grid[i][j][1] /= cur_mass
                 flag_grid[i][j][0] = 1.
+                # if cur_position[0] < 0.2 or cur_position[0] > 0.8 or cur_position[1] < 0.1 or cur_position[1] > 0.9:
+                #     prevel_grid[i][j][0] = 0.
+                #     prevel_grid[i][j][1] = 0.
                 # print('prev vel: {}'.format(prevel_grid[i][j]))
     # input('') # looks good
     
     for idx, pos in enumerate(particle_pos):
         pos2d = np.array([pos[0], pos[1]])
-        number_of_ghost_cells_plus_one = np.array([1,1])
-        closest_cell=np.int16(pos2d // dx)
-        # print('particle pos: {}, closest cell: {}, dx: {}'.format(pos2d, closest_cell, dx))
-        # input('')
-        # print('closest cell: {}'.format(closest_cell))
+        closest_cell = (pos2d * inv_dx).astype(int)
         closest_cell_position = (np.float32(closest_cell)) * dx + .5 * np.array([dx, dx])
         X_eval = pos2d - (closest_cell_position - np.array([dx, dx]))
         w = np.array([	[0., 0.],
@@ -1315,9 +1325,8 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
         p_vel = particle_vel[idx]
         pic_vel = np.array([0., 0.])
         flip_vel = np.array([p_vel[0], p_vel[1]])
-        # print('cur vel: {}, init pic_vel: {}, init flip_vel: {}'.format(p_vel, pic_vel, flip_vel))
         # input('')
-        flip = .95
+        flip = 0.
         # vel = 0.
         sum_weight = 0.
         vel_threshold = 1
@@ -1329,11 +1338,9 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
                 ci, cj = cur_cell[0] , cur_cell[1] 
                 if flag_grid[ci][cj][0] < 0.:
                     print('error')
-                    input('pre_vel: {}'.format(prevel_grid[ci][cj] ))
-                # print('center cell: {}, current cell: {}'.format(closest_cell, cur_cell))
+                    # input('pre_vel: {}'.format(prevel_grid[ci][cj]))
                 grid_vel = np.array(grid[ci][cj])
                 grid_vel_prev = np.array(prevel_grid[ci][cj])
-                # print('{}'.format(pic_vel))
                 pic_vel += weight * grid_vel
                 flip_vel += weight * (np.array(grid_vel) - np.array(grid_vel_prev))
                 # print('{}.{}: {} and {}, weight: {}'.format(ci, cj, grid_vel, grid_vel_prev, weight))
@@ -1342,7 +1349,6 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
         # print('{}: pic_vel: {}, flip_vel: {}'.format(closest_cell/grid_shape[0], pic_vel, flip_vel))
         particle_vel[idx] = flip * flip_vel + (1. - flip) * pic_vel
         # print('{} = {} * {} + {} * {}'.format(particle_vel[idx], flip, flip_vel, (1.-flip), pic_vel))
-        # particle_vel[idx] = np.array([vel[0], vel[1]])
     # input('')
 #										1st step: frame 1
 # evaluate the generator (sampler) on the first step of the first simulation and output result
@@ -1358,14 +1364,8 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
             batch_xs = inputx[frame_no]
             if view_only:
                 batch_ys = inputy[frame_no]
-            # batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
-            # batch_ys = y[frame_no]
-        # print('frame_no: {}'.format(frame_no))
-        # print('y[0] shape: {}'.format(y[0].shape))
-        # print('batch_ys shape: {}'.format(batch_ys.shape)) # 131072
-        # print('shape: {}'.format(batch_xs.shape))
-        # input('')
         resultTiles = []
+        # print(batch_xs.shape)         # 1x64x64x2
         for tileno in range(batch_xs.shape[0]):
             batch_xs_in = np.reshape(batch_xs[tileno],[-1, n_input])
             results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
@@ -1380,7 +1380,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
             resultTiles = np.reshape(resultTiles,[resultTiles.shape[0], imgSz, imgSz, imgSz])
         tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
         print('generated vel field: ')
-        tc.saveVecField(resultTiles, outPath + 'generated_vel_field/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image)
+        tc.saveVecField(resultTiles, outPath + 'generated_vel_field/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image, aveV=ave_vel[frame_no], input_field=np.reshape(batch_xs,[batch_xs.shape[1], batch_xs.shape[2], batch_xs.shape[3]]))
         # (-1, n_input)
         # print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
         # print('batch_ys: {}'.format(batch_ys.shape))			# 16x512
@@ -1415,7 +1415,8 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
             batch_xs = inputx[frame_no]
             # batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
         resultTiles = []
-        print('batch_xs shape: {}'.format(batch_xs.shape))
+        aveV=ave_vel[frame_no]
+        input_field=np.reshape(batch_xs,[batch_xs.shape[1], batch_xs.shape[2], batch_xs.shape[3]])
         if True:
             grid_shape = batch_xs.shape
             vel_threshold = 2
@@ -1467,7 +1468,7 @@ def generateValiVel(sim_no = fromSim, frame_no = 1, outPath = test_path,imageind
             print('result size: {}'.format(resultTiles.shape))
             # TODO: uncomment
             tiles_in_image=[int(simSizeHigh/tileSizeHigh),int(simSizeHigh/tileSizeHigh)]
-            buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image)
+            buildVelField(resultTiles, outPath, tiles_in_image=tiles_in_image, aveV=aveV, input_field=input_field, frame_no=frame_no)
             moveParticles(frame_no=frame_no)
             drawParticles(str(frame_no + 1))
         else:
@@ -1760,16 +1761,15 @@ if not outputOnly and trainGAN:
                 if cur_ppos is None:
                     print(batch_size_disc)
                     print(useDataAugmentation)
-                    input('')
                 kkin = k_f*kkin
                 kk2in = k2_f*kk2in
                 # TODO a decay for weights, kktin = kt_f * kktin (kt_f<1.0)
                 
                 # FEED
-                # train_dict = {x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, kk: kkin,
-                #               kk2: kk2in, lr_global_step: lrgs}
-                train_dict = {x: batch_xs, x_disc: batch_xs, y: batch_ys, ppos: cur_ppos, keep_prob: dropout, train: True, kk: kkin,
+                train_dict = {x: batch_xs, x_disc: batch_xs, y: batch_ys, keep_prob: dropout, train: True, kk: kkin,
                               kk2: kk2in, lr_global_step: lrgs}
+                # train_dict = {x: batch_xs, x_disc: batch_xs, y: batch_ys, ppos: cur_ppos, keep_prob: dropout, train: True, kk: kkin,
+                #               kk2: kk2in, lr_global_step: lrgs}
                 if use_spatialdisc:
                     # getlist = [gen_optimizer, gen_loss, disc_loss_layer, gen_l1_loss, lossTrain_gen, gen_l2_loss]
                     getlist = [gen_optimizer, gen_loss, disc_loss_layer, gen_l1_loss, lossTrain_gen, gen_l2_loss]
@@ -1871,8 +1871,6 @@ if not outputOnly and trainGAN:
             if (iteration + 1) % valiInterval == 0:
                 if use_spatialdisc:
                     # gather statistics from training
-                    print('numValis: {}'.format(numValis))
-                    input('')
                     cur_ppos, batch_xs, batch_ys = getInput(batch_size = numValis)
                     # FEED
                     disc_out, summary_disc_out, gen_out, summary_gen_out = sess.run([disc_sigmoid, outTrain_disc_real, gen_sigmoid, outTrain_disc_gen], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, ppos: cur_ppos, keep_prob: dropout, train: False})
@@ -1891,7 +1889,7 @@ if not outputOnly and trainGAN:
                     summary_writer.add_summary(summary_vali_out, iteration)
                     avgValiCost_disc_real += disc_vali_cost_real
                     avgValiOut_disc_real += disc_out_real
-                    #disc with generated input
+                    # disc with generated input
                     disc_out_gen, summary_vali_out, disc_vali_cost_gen, summary_vali = sess.run([gen_sigmoid, outVali_disc_gen, disc_loss_gen, lossVali_disc_gen], feed_dict={x: batch_xs, x_disc: batch_xs, keep_prob: dropoutOutput, train: False})
                     summary_writer.add_summary(summary_vali, iteration)
                     summary_writer.add_summary(summary_vali_out, iteration)

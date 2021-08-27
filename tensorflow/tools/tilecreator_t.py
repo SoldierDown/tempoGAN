@@ -1093,7 +1093,7 @@ def savePngsBatch(low,high, TC, path, batchCounter=-1, save_vels=False, dscale=1
 
 
 # simpler function to output multiple tiles into grayscale pngs
-def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = '', only_save_vel_field = False):
+def saveVecField(tiles, path,input_field=None, imageCounter=0, tiles_in_image=[1,1], channels=[0], save_gif=False, plot_vel_x_y=False, save_rgb=None, rgb_interval=[-1,1], extra = '', only_save_vel_field = False, aveV=np.zeros(2)):
 	'''
 		tiles_in_image: (y,x)
 		tiles: shape: (tile,y,x,c)
@@ -1196,6 +1196,11 @@ def saveVecField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0]
 						real_i = j
 						real_j = grid_shape[0] - i - 1
 						tmp_grid[real_i][real_j] = grid_vel
+						low_i = i//4
+						low_j = j//4
+						input_val = input_field[low_i][low_j]
+						if input_val[0]!=0. or input_val[1]!=0.:
+							tmp_grid[real_i][real_j] += aveV
 				img = tmp_grid
 			img_shape = img.shape
 			img_w = img.shape[0]
