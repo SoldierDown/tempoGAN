@@ -194,7 +194,8 @@ highfilename = "velocity_high_%04d.uni"
 mfl = ["velocity"]
 mfh = ["velocity"]
 if outputOnly: 
-    if not view_only:
+    # if not view_only:
+    if False:
         highfilename = None
         mfh = None
 if useDensity:
@@ -253,8 +254,8 @@ else:
 if useDataAugmentation:
     tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames, all_ppos  = floader.get()
-if view_only:
-    inputy = y.copy()
+# if view_only:
+inputy = y.copy()
 # print('inputx shape: {}'.format(inputx.shape))
 # print('y shape: {}'.format(y.shape))
 # print('y[0] shape: {}'.format(y[0].shape))
@@ -355,17 +356,18 @@ def drawParticles(name):
     h = 2048
     im = Image.new('RGB', (w, h), (0, 0, 0))
     draw = ImageDraw.Draw(im)
+    half_pw = 2
     for pos in particle_pos:
         # draw.ellipse((w * pos[0], h * pos[1], w * pos[0] + 1, h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
         # draw.ellipse((w - w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
-        draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
+        draw.ellipse((w * pos[0] - half_pw, h - h * pos[1] - half_pw, w * pos[0] + half_pw, h - h * pos[1] + half_pw), fill=(255, 255, 255), outline=(255, 255, 255))
         # draw.ellipse((w * pos[0], h - h * pos[1], w * pos[0] + 1, h - h * pos[1] + 1), fill=(255, 255, 255), outline=(255, 255, 255))
     im.save(test_path + '/particles/' + '{:04d}'.format(int(name))+'.bmp', quality=95)
 
 
 # read particle positions
 if outputOnly:
-    with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/particle_positions.txt') as f:
+    with open('../2ddata_sim/sim_%04d/0000.txt' % fromSim) as f:
         ave_pos = np.zeros(2)
         cnt = 0
         lines = [line.rstrip() for line in f]
@@ -389,7 +391,7 @@ if outputOnly:
         drawParticles('0')
     cnt = 0
     # read dt
-    with open('/nfs/hsu/repo/MPM/mpm/output-2d-7000-64x64/timestep.txt') as f:
+    with open('../2ddata_sim/sim_%04d/timestep.txt' % fromSim) as f:
         lines = [line.rstrip() for line in f]
         for line in lines:
             # print(pos)
@@ -1329,7 +1331,7 @@ def buildVelField(tiles, path, imageCounter=0, tiles_in_image=[1,1], channels=[0
                 ci, cj = cur_cell[0] , cur_cell[1] 
                 if flag_grid[ci][cj][0] < 0.:
                     print('error')
-                    input('pre_vel: {}'.format(prevel_grid[ci][cj] ))
+                    # input('pre_vel: {}'.format(prevel_grid[ci][cj] ))
                 # print('center cell: {}, current cell: {}'.format(closest_cell, cur_cell))
                 grid_vel = np.array(grid[ci][cj])
                 grid_vel_prev = np.array(prevel_grid[ci][cj])
@@ -1356,7 +1358,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
             cur_ppos, batch_xs, batch_ys = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
         else:
             batch_xs = inputx[frame_no]
-            if view_only:
+            if True:
                 batch_ys = inputy[frame_no]
             # batch_xs, batch_ys = getInput(randomtile = False, index = frame_no)
             # batch_ys = y[frame_no]
@@ -1388,7 +1390,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
         # os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
         # os.system('mkdir ' + test_path + 'generated_vel_field/')
         # os.system('mkdir ' + test_path + 'particles/')
-        if view_only:
+        if True:
             original_batch_ys = np.reshape(batch_ys, [1, imgSz, imgSz, 2])
             print('original HIGH vel field: ')
             tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_')
@@ -1760,7 +1762,7 @@ if not outputOnly and trainGAN:
                 if cur_ppos is None:
                     print(batch_size_disc)
                     print(useDataAugmentation)
-                    input('')
+                    # input('')
                 kkin = k_f*kkin
                 kk2in = k2_f*kk2in
                 # TODO a decay for weights, kktin = kt_f * kktin (kt_f<1.0)
@@ -1872,7 +1874,6 @@ if not outputOnly and trainGAN:
                 if use_spatialdisc:
                     # gather statistics from training
                     print('numValis: {}'.format(numValis))
-                    input('')
                     cur_ppos, batch_xs, batch_ys = getInput(batch_size = numValis)
                     # FEED
                     disc_out, summary_disc_out, gen_out, summary_gen_out = sess.run([disc_sigmoid, outTrain_disc_real, gen_sigmoid, outTrain_disc_gen], feed_dict={x: batch_xs, x_disc: batch_xs, y: batch_ys, ppos: cur_ppos, keep_prob: dropout, train: False})
