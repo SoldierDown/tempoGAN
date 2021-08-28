@@ -194,7 +194,7 @@ highfilename = "velocity_high_%04d.uni"
 mfl = ["velocity"]
 mfh = ["velocity"]
 if outputOnly: 
-    if not view_only:
+    if False:
         highfilename = None
         mfh = None
 if useDensity:
@@ -253,7 +253,7 @@ else:
 if useDataAugmentation:
     tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
 inputx, y, xFilenames, all_ppos, ave_vel = floader.get()
-if view_only:
+if True:
     inputy = y.copy()
 # print('inputx shape: {}'.format(inputx.shape))
 # print('y shape: {}'.format(y.shape))
@@ -1362,7 +1362,7 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
             cur_ppos, batch_xs, batch_ys = getInput(randomtile = False, index = (sim_no-fromSim)*frameMax + frame_no)
         else:
             batch_xs = inputx[frame_no]
-            if view_only:
+            if True:
                 batch_ys = inputy[frame_no]
         resultTiles = []
         # print(batch_xs.shape)         # 1x64x64x2
@@ -1382,16 +1382,17 @@ def generateValiImage(sim_no = fromSim, frame_no = 0, outPath = test_path, image
         print('generated vel field: ')
         tc.saveVecField(resultTiles, outPath + 'generated_vel_field/', imageCounter=(imageindex+frameMin), tiles_in_image=tiles_in_image, aveV=ave_vel[frame_no], input_field=np.reshape(batch_xs,[batch_xs.shape[1], batch_xs.shape[2], batch_xs.shape[3]]))
         # (-1, n_input)
-        # print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
-        # print('batch_ys: {}'.format(batch_ys.shape))			# 16x512
+        print('batch_xs: {}'.format(batch_xs.shape))			# 16x512
+        print('batch_ys: {}'.format(batch_ys.shape))			# 16x512
+        print(imgSz)
         # original_batch_ys = np.reshape(original_batch_ys,[1, imgSz, imgSz, 2])
         # os.system('mkdir ' + test_path + 'original_vel_field_coarse_fine/')
         # os.system('mkdir ' + test_path + 'generated_vel_field/')
         # os.system('mkdir ' + test_path + 'particles/')
-        if view_only:
+        if True:
             original_batch_ys = np.reshape(batch_ys, [1, imgSz, imgSz, 2])
             print('original HIGH vel field: ')
-            tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_')
+            tc.saveVecField(original_batch_ys, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra='ori_high_', aveV=ave_vel[frame_no], input_field=np.reshape(batch_xs,[batch_xs.shape[1], batch_xs.shape[2], batch_xs.shape[3]]))
             print('original LOW vel field: ')
             tc.saveVecField(batch_xs, outPath + 'original_vel_field_coarse_fine/', imageCounter=(imageindex+frameMin), extra = 'ori_low_')
         # ori_low_img_size = int((batch_xs.shape[1]/n_inputChannels)**(1.0/2))

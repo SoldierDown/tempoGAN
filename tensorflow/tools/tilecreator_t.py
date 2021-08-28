@@ -1196,11 +1196,12 @@ def saveVecField(tiles, path,input_field=None, imageCounter=0, tiles_in_image=[1
 						real_i = j
 						real_j = grid_shape[0] - i - 1
 						tmp_grid[real_i][real_j] = grid_vel
-						low_i = i//4
-						low_j = j//4
-						input_val = input_field[low_i][low_j]
-						if input_val[0]!=0. or input_val[1]!=0.:
-							tmp_grid[real_i][real_j] += aveV
+						if input_field is not None:
+							low_i = i//4
+							low_j = j//4
+							input_val = input_field[low_i][low_j]
+							if input_val[0]!=0. or input_val[1]!=0.:
+								tmp_grid[real_i][real_j] += aveV
 				img = tmp_grid
 			img_shape = img.shape
 			img_w = img.shape[0]
